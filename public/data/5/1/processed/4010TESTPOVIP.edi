@@ -1,0 +1,32 @@
+ISA*00*          *00*          *01*112084681T     *ZZ*VIPINT_T       *190121*1255*U*00401*000000001*0*T*~
+GS*PO*112084681T*VIPINT_T*20190121*1255*001*X*004010
+ST*850*0001
+BEG*00*DS*CS33323411**20190121
+REF*VR*12367*41324
+REF*2P*Wayfair
+PER*IC*VIP International*FX*201-490-5634*TE*201-984-7718
+CTP**WHL
+ITD*01***********Net 60
+DTM*010*20190123
+TD5**2*FDEG*ZZ*GR
+N9*TH*346593300
+N1*BT*Wayfair
+N3*4 Copley Place, Floor 7
+N4*Boston*MA*02116*US
+PER*BJ*BT*TE*6175326815*FX*617-502-7798*EM*WayfairOps1@wayfair.com
+N1*ST*TEST MAPPING  
+N2*FAKE INC. 
+N3*10 FAKE ROAD
+N4*FAKE TOWN*IN*05847*US*ZN*R
+PER*DC*ST*TE*617-502-7490***EM*FAKE@FAKE.COM
+N1*LW*TEST MAPPING 
+N3*10 FAKE ROAD
+N4*FAKE TOWN*IN*00000*USA
+PO1*1*1*EA*339.99*WH*VN*FY1007
+PID*F****Vintage 3 Piece Wood Candlestick Set
+MSG*Please dropship blind and always include Wayfair packing slip from http://partners.wayfair.com. Please do not partial ship without prior autorization from Wayfair. Please include the PO# as the reference number on the label/BO. Please reply with delay notification
+CTT*1
+AMT*GV*339.99
+SE*28*0001
+GE*1*001
+IEA*1*000000001

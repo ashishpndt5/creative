@@ -1,0 +1,15 @@
+{
+	"folders":
+	[
+		{                                                                  
+			"path": "."
+		}
+	],
+	"settings": {
+        "xdebug": {
+             "url": "http://localhost/znectuiApp/web/app.php",
+             "super_globals": true,
+            "close_on_stop": true
+        }
+    }
+}

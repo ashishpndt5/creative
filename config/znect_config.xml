@@ -1,0 +1,15 @@
+<znect>
+	<data_path>../data</data_path>
+	<fedex>
+		<key>jJq7e0zylOPvRPUh</key>
+		<password>IDPqVznZIgoieH8LyRmSzzgc6</password>
+		<account_number>510087925</account_number>
+		<meter_number>118650935</meter_number>
+	</fedex>
+        <database>
+            <dbUrl>sip4-740.nexcess.net</dbUrl>
+            <dbUser>fabhabit_znectte</dbUser>
+            <dbPwd>ScudCriedWaspSkeins26</dbPwd>
+            <dbName>fabhabit_znecttest</dbName>
+        </database>
+</znect>

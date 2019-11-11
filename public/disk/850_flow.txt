@@ -1,0 +1,64 @@
+-----------------------------------------------------   Order 850 process ---------------------------------------------------------------------------
+fileProcessorDriver.php
+1. driver/fileProcessorDriver.php - $fp->execute($arguments["trader"], $arguments["partner"]); - call workflow/fileProcessor.php execute method ->
+2. workflow/fileProcessor.php - execute() -> it getDirContents() method and get all the files to run for trader and partner dir..,
+
+	then call -> $this->processPartnerInFiles("in", "processed", $filePath, $trader, $partner); -> get the files and set the destination and in folder.
+	then call receiveMessageWF (workflow) method -> $response=$workflow->execute($trader, $partner, $ipFileName); -> 
+	in workflow/receiveMessageWF.php -> function execute($traderId, $partnerId, $fileName) { -> in this method we set the trader and partner and get the adapters list. and also set 
+	$this->partnerCommunicationAdapter->setPartner($this->partner);
+    $this->partnerCommunicationAdapter->setTrader($this->trader);
+	get the $transactionType like - Order: in switch case : 
+	case "Order": 
+				$orderArray = $this->readOrder($fileName, $transactionType, $partner); - 
+					in function readOrder($fileName, $messageType, $partner) { - 
+					$orderArray = $this->partnerCommunicationAdapter->processIncomingMessage($fileName, $messageType, $this->partner); ->
+						we parse parseEDIMessage and get in array and 
+						elseif ($ediMessage['ST'][1][1] == "850") { $this->getOrder($ediMessage); 
+						
+						so our required adapter will call like "ediPier1ImportAdapter" -> 
+						public function getOrder($ediMessage) { -> Read the edi file for each segment like $order->setPoNumber(trim($ediMessage["BEG"][0][3])); , N1, 
+						$saAddress->setStreet1($ediMessage["N3"][$shippingAddressIndex][1]);
+						$baAddress->setZip($ediMessage["N4"][$billingAddressIndex][3]);
+						get sipping details, call getScacCodeInfoNew() for shipping method from "shipping_carrier_codes" table.
+						
+						then set item details from PO1 segment.
+						
+					$isEligible = $this->dbObject->isEligibleToProcess($this->getTrader()->getId(), $this->getPartner()->getId(), $order->getPoNumber()); -> check from edi_status_new table.
+					
+				$isSucess = $this->writeOrder($orderArray); ->  insert into new order.
+					
+	
+	
+	
+	
+$workflow->execute($trader, $partner, $ipFileName) -> this is in workflow/receiveMessageWF - set the adapter and trader and partner 
+
+3. workflow/receiveMessageWF.php - case 'order' : 
+	readorder():
+		adapter/ediAdapter.php - processIncomingMessage() -> parseEDIMessage() , $ediMessage['ST'][1][1] == "850" -> class ediHayneedleAdapter -> getorder() ->
+			result : magentoOrder , isEligibleToProcess() in edisqlnew.php  return true as in edi_status_new table no records
+			
+			logOrder() -> in edisqlnew.php insert data in edi_status_new with RC status -> update neworder table * blank no id avl
+			
+			Result from readorder : magentoOrder
+	
+	writeorder() : 
+		workflow/receiveMessageWF.php -> writeOrder() -> class znectDBAdapter saveOrder() -> $db->putOrder() in znectDbSqls.php 
+		orderIsEligibleToProcess in znectDbSqls.php call return true as blank in orderInfo table
+		serializeObjects() -> insert records in neworder table
+		
+		writeOrder->$this->dbObject->logOrder($thisOrder->getTrader()->getId(), $thisOrder->getPartner()->getId(), $thisOrder->getPoNumber(), $thisOrder->getSoNumber(), "IC", ""); - update neworder table and edi_status_new with status ET and IC.
+		
+	
+	orderInfo table -> insert in neworder table and then insert into orderInfo, orderComments, item(neworderid,sku id) table
+	putOrder() - adapter/znectDBAdapter.php -> isSkuAvailable() 
+	
+	putOrder(),updateOrder() insert in erp 
+	logorder() - this method will insert new data in edi_status_new with status ET and in neworder table
+	invoiceOrder() - insert new data in edi_status_new with status IC and in neworder table also.
+	updateOrderInfoStatus() - update orderinfo table with status ET.
+	updateOrderInfoStatus() - update neworder table with sonumber.
+	sendFunctionalAcknowledgement() - return folder path for out - and edi file.
+	sendOrderAcknowledgement -> saveItemInformationFrom850() - save edi_order_items table for total item ordered with quantity.
+	splitOrdersByWarehouse() - in neworder.php - 	
