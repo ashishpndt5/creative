@@ -11,6 +11,7 @@ use App\Http\Controllers\AppConfigController;
 use Log;
 use Storage;
 use File;
+use Config;
 
 class FileProcessorController extends Controller
 {
@@ -33,6 +34,9 @@ class FileProcessorController extends Controller
     public function execute($traderId =  0, $partnerId = 0) {
     	
     	$filePath = $traderId. DIRECTORY_SEPARATOR . $partnerId;
+    	
+    	Config::set('filesystems.trader_id', $traderId);
+    	Config::set('filesystems.partner_id', $partnerId);
     	
     	if($dir_exist = $this->getDirContents()) {
     		
@@ -105,7 +109,8 @@ class FileProcessorController extends Controller
     }
     
     private function processPartnerInFiles($source, $dest, $trader, $partner) {
-    	
+    	//$config = Config::get('config.path');
+    	//$cc = Config::get('filesystems.path');
     	$path = 'public'. DIRECTORY_SEPARATOR .'data'. DIRECTORY_SEPARATOR;
     	
     	$ipFiles = $this->getDirFiles($path, $trader, $partner, $source);
@@ -120,11 +125,11 @@ class FileProcessorController extends Controller
     		$workflow = new ReceiveMessageWFController();
     		$response = $workflow->execute($trader, $partner, $file);
     		
-    		$ipFileName = $filePath . "/" . $source . "/" . $file;
-    		$destFileName =$filePath . "/" . $dest . "/" . $file;
-    		$this->logger->LogDebug("calling workflow execute " . $ipFileName);
-    		echo "processing: " . $ipFileName . "\n";
-    		$response=$workflow->execute($trader, $partner, $ipFileName);
+    		//$ipFileName = $filePath . "/" . $source . "/" . $file;
+    		//$destFileName =$filePath . "/" . $dest . "/" . $file;
+    		//$this->logger->LogDebug("calling workflow execute " . $ipFileName);
+    		//echo "processing: " . $ipFileName . "\n";
+    		//$response=$workflow->execute($trader, $partner, $ipFileName);
     		if(isset($response['isError'])){
     			if($response['isError']!==true){
     				rename($ipFileName,$destFileName);

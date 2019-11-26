@@ -65,5 +65,7 @@ return [
         ],
 
     ],
+	
+	'path' => 'public'. DIRECTORY_SEPARATOR .'data'. DIRECTORY_SEPARATOR,
 
 ];
