@@ -24,11 +24,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-         //Schema::defaultStringLength(191);
-    	view()->composer('*',function($view) {
+         Schema::defaultStringLength(191);
+    	/*view()->composer('*',function($view) {
     		$view->with('user', 'ashish');
     		//$view->with('user', Auth::user());
     		//$view->with('social', Social::all());
-    	});
+    	});*/
+    	
     }
 }

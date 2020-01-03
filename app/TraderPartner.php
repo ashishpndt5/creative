@@ -34,7 +34,7 @@ class TraderPartner extends Model
      *
      * @var array
      */
-    protected $fillable = ['traderId','partnerId','partnerName','emailAddress','ediInterchangeID','ediQualifier','traderInterchangeID','traderIDQualifier','ediX12Version','ediGSIndustryIdentifierCode','fieldSeperator','ediSegmentSeperator'];
+    protected $fillable = ['traderId','partnerId','partnerName','emailAddress','getOrderAdapter','ediInterchangeID','ediQualifier','traderInterchangeID','traderIDQualifier','ediX12Version','ediGSIndustryIdentifierCode','fieldSeperator','ediSegmentSeperator'];
 
     /**
 	 * Get the user that owns the phone.

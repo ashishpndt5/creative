@@ -133,6 +133,12 @@ class FileProcessorController extends Controller
     		if(isset($response['isError'])){
     			if($response['isError']!==true){
     				rename($ipFileName,$destFileName);
+    				$fpath = $path. DIRECTORY_SEPARATOR .$trader. DIRECTORY_SEPARATOR .$partner. DIRECTORY_SEPARATOR .$source. DIRECTORY_SEPARATOR .$file;
+    				Storage::disk('FTP')->put('out/file1.jpg', Storage::get($fpath));
+    				
+    				//'public/data/5/1/in/'.$file
+    				Storage::disk('FTP')->put('out/'.$file, Storage::get($fpath));
+    				
     			}
     		}else{
     			rename($ipFileName,$destFileName);

@@ -22,9 +22,10 @@ class WayfairAdapterController extends Controller
     	return $messageType;
 	}
 	
-	public function getMessageType($filename,$controller) {
+	public function getMessageType_1($filename,$controller) {
 		//return $this->baseAdapter->getMessageType($filename,$controller);
-		$messageType = $controller->getMessageType($filename,$controller);
+		$messageType = $this->getMessageType($filename,$controller);
+		//$messageType = $controller->getMessageType($filename,$controller);
 		return $messageType;
 	}
 	

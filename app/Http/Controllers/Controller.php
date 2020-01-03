@@ -14,22 +14,28 @@ use App\Http\Controllers\MagentoOrderController;
 use App\Http\Controllers\NewOrderController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\ItemController;
+use App\TraderPartner;
+use App\RefCounter;
+use App\EdiStatusNew;
+use App\NewOrder;
 
 class Controller extends BaseController
 {
 	public $trader;
 	public $partner;
+	public $partnerId;
+	public $traderId;
 	public $transactionSetIdentifierCode;
 	public $transactionTypeCode;
 	private $orderArray = array();
 	
     use AuthorizesRequests, DispatchesJobs, ValidatesRequests;
     
-    public function __construct() {
+    //public function __construct() {
     	
     	//View::share('user', Auth::user());
     	//View::share('social', Social::all());
-    }
+  //  }
     
     public function storage($trader = null, $partner = null) {
     	
@@ -42,8 +48,23 @@ class Controller extends BaseController
     	return $this->trader;
     }
     
-    public function getPartner() {
+    public function setPartner($partner) {
+    
+    	$this->partnerId = $partner;
+    }
+    
+    public function getPartnerId() {
     	 
+    	return $this->partnerId;
+    }
+    
+    public function setPartnerId($partner_id) {
+    
+    	$this->partnerId = $partner_id;
+    }
+    
+    public function getPartner() {
+    
     	return $this->partner;
     }
     
@@ -70,7 +91,7 @@ class Controller extends BaseController
     	return $fileContents;
     }
     
-    public function getMessageData($fileName,$controller = NULL) {
+    public function getMessageData($fileName) {
     	$path = Config::get('filesystems.path');
     	//$tr = $controller->getTrader();
     	$trader_id = Config::get('filesystems.trader_id');
@@ -184,11 +205,11 @@ class Controller extends BaseController
     	return $message;
     }
     
-    public function getEdiMessageType($fileName,$controller = NULL) {
+    public function getEdiMessageType($fileName) {
     	$msgType = "";
     	$functionId = "";
-    	$ediFileStream = $this->getMessageData($fileName,$controller);
-    	$tPartner = $controller->getPartner();
+    	$ediFileStream = $this->getMessageData($fileName);
+    	$tPartner = $this->getPartner();
     	//$tPartner = $this->getPartner();
     	if(!empty($tPartner)) {
     		$fieldSeperator = strtoupper($tPartner[0]->getOriginal('fieldSeperator'));
@@ -242,14 +263,21 @@ class Controller extends BaseController
     }
     
 
-    public function getMessageType($fileName,$controller) {
-    	$this->partner = $controller->getPartner();
+    public function getMessageType($fileName) {
+    	
+    	//$this->partner = $this->getPartner();
+    	//$partner_id = $this->getPartnerId();
+    	$traderId = Config::get('filesystems.trader_id');
+    	$partnerId = Config::get('filesystems.partner_id');
+    	//$this->partner = $this->getPartner();
+    	$traderPartners = TraderPartner::where('partnerId',$partnerId)->where('trader_id',$traderId)->get()->first();
     	$msgType = "";
     	//$tradeInterface = strtoupper($this->partner->tradeInterface());
-    	$tradeInterface = strtoupper($this->partner[0]->getOriginal('tradeInterface'));
+    	//$tradeInterface = strtoupper($this->partner[0]->getOriginal('tradeInterface'));
+    	$tradeInterface = strtoupper($traderPartners->tradeInterface);
     	switch ($tradeInterface) {
     		case "EDI":
-    			$msgType = $this->getEdiMessageType($fileName,$controller);
+    			$msgType = $this->getEdiMessageType($fileName);
     			//$msgType1 = $this->getEdiMessagecustom($msgType,$controller);
     			break;
     		case "API":
@@ -352,8 +380,217 @@ class Controller extends BaseController
     public function setOrderArray($order) {
     	$this->orderArray[] = $order;
     }
+    
     public function getOrderArray() {
     	return $this->orderArray;
     }
     
+    public function logOrder($traderId, $partnerId, $PoNumber, $soNumber, $status, $comment=null, $errorDescription=NULL) {
+    	
+    	$comment = str_replace("'", "''", $comment);
+                
+        $workflowSql = new RefCounter();
+        $workflowId = "";
+        if ($status == "RC") {
+            $workflow = $workflowSql->getNewWorkFlowId();
+            $workflowId = $workflow['counterValue'];
+        }
+        else {
+            $workflowId = $workflowSql->getWorkFlowId($traderId, $partnerId, $PoNumber);
+        }
+        $dd;
+        //ensure workflow id is not null or empty
+        if (empty($workflowId)) {
+            $workflowId = $workflowSql->getNewWorkFlowId();
+        }
+        
+        if($status == "ER") {
+        	/*$sql = "Update edi_status_new set errored = 'Y', errorDescription = '$errorDescription'";
+        	$sql .= " where workflowId = '$workflowId' ";
+        	$sql .= " order by status_id desc limit 1";*/
+        	$ediStatusUpd = EdiStatusNew::find($workflowId)->orderBy('status_id', 'desc');
+        	$ediStatusUpd->errored = 'Y';
+        	$ediStatusUpd->errorDescription = $errorDescription;
+        	$ediStatusUpd->errored = 'Y';
+        	$upd = $ediStatusUpd->save();
+        } else {
+        	/*$sql = "INSERT INTO edi_status_new (workflowId, trader_id, customer_id , customer_po , order_number, status, comment, errorDescription)";
+        	$sql .= " VALUES";
+        	$sql .= " ('" . $workflowId . "', '". $traderId . "', '" . $partnerId . "', '" . $PoNumber . "',  '" . $soNumber . "' ,'" . $status . "', '" . $comment . "', '" . $errorDescription . "')";*/
+        	
+        	$ediStatusNew = new EdiStatusNew;
+        	
+        	$ediStatusNew->workflowId = isset($workflowId) ? $workflowId : 0;
+        	$ediStatusNew->trader_id = isset($traderId) ? $traderId : 0;
+        	$ediStatusNew->customer_id = isset($partnerId) ? $partnerId : 0;
+        	$ediStatusNew->customer_po = isset($PoNumber) ? $PoNumber : 0;
+        	$ediStatusNew->order_number = isset($soNumber) ? $soNumber : '';
+        	$ediStatusNew->status = isset($status) ? $status : 0;        	
+        	$ediStatusNew->comment = isset($comment) ? $comment : 0;
+        	$ediStatusNew->errorDescription = isset($errorDescription) ? $errorDescription : 0;
+        	$eStatusNew = $ediStatusNew->save();
+        	
+        	if($eStatusNew && $status == "RC") {
+        		//$workflowUpd = new RefCounter($workflow['id']);
+        		$workflowUpd = RefCounter::find($workflow['id']);
+        		$workflowUpd->counterValue = $workflow['counterValue'] + 1;
+        		$upd = $workflowUpd->save();
+        		$upd;
+        	}
+        	
+        	if($status == "ER") {
+        		/*$sql = "UPDATE newOrder SET workflowId= '$workflowId', soNumber='$soNumber', errored='Y', errorDescription='$errorDescription' where ";
+        		$sql .= " traderId='{$traderId}' and partnerId='{$partnerId}' and poNumber = '{$PoNumber}'";*/
+        		/*$ediStatusUpd = NewOrder::find($workflowId);
+        		$ediStatusUpd->errored = 'Y';
+        		$ediStatusUpd->errorDescription = $errorDescription;
+        		$ediStatusUpd->errored = 'Y';
+        		$upd = $ediStatusUpd->save();*/
+        		$up = NewOrder::where(
+        				['traderId'=>$traderId,'partnerId'=>$partnerId,'poNumber'=>$PoNumber])->update(
+        						['workflowId'=>$workflowId,'soNumber'=>$soNumber,'errored'=>'Y','errorDescription'=>$errorDescription]
+        						);
+        		 
+        	} else {
+        		//$sql = "UPDATE newOrder SET workflowId= '$workflowId', soNumber='$soNumber', status='$status', comment='$comment', errored='N', errorDescription='' where ";
+        		//$sql .= " traderId='{$traderId}' and partnerId='{$partnerId}' and poNumber = '{$PoNumber}'";
+        		$up = NewOrder::where(
+        				['traderId'=>$traderId,'partnerId'=>$partnerId,'poNumber'=>$PoNumber])->update(
+        						['status'=>$status,'comment'=>$comment,'workflowId'=>$workflowId,'soNumber'=>$soNumber,'errored'=>'N','errorDescription'=>'']
+        						);
+        	}
+        }
+    }
+    
+    public function saveOrder($order) {
+    	//$db = $this->db;
+    	//$order->setTraderId($order->getTrader()->getId());
+    	//$order->setPartnerId($order->getPartner()->getId());
+    	return $this->putOrder($order);
+    }
+    
+    public function putOrder($order) {
+    	
+    	$checkSku = $order->getTrader()->getCheckSku();
+    	if($checkSku && !$order->getReRun()){
+    		$resultArr = $this->isSkuAvailable($order);
+    	}else{
+    		$resultArr = $this->setSkuAvailable($order);
+    	}
+    	$arrProducts = array();
+    	
+    	if (count($resultArr['inStockItem']) > 0) {
+    		$arrProducts = $resultArr['inStockItem'];
+    	}
+    	
+    	if (((integer) $partner->getShipComplete()) && !($resultArr['is_in_stock'])) {
+    			
+    		if (isset($resultArr['exceptionMessage'])) {//count of out of stock ,,,, count of invalid
+    			$resp["errorMessage"] = $resultArr['exceptionMessage'];
+    		} else {
+    			$resp["errorMessage"] = '';
+    			if (isset($resultArr['outOfStockSKU'])) {
+    				$resp["errorMessage"] = "Received order for out of stock sku " . implode(',', $resultArr['outOfStockSKU']);
+    			}
+    			if (isset($resultArr['wrongSKU'])) {
+    				$resp["errorMessage"] .= " Received order for incorrect sku " . implode(',', $resultArr['wrongSKU']);
+    			}
+    		}
+    		$resp["isError"] = true;
+    		$this->logger->LogWarn("znectDBAdapter:putOrder: " . $resp["errorMessage"]);
+    		return $resp;
+    	} elseif (!((integer) $partner->getShipComplete())) {
+    		if(isset($resultArr['outOfStockSKU'])){
+    			$resp['outOfStock'] = $resultArr['outOfStockSKU'];
+    		}elseif(isset($resultArr['wrongSKU'])){
+    			$resp['wrongSKU'] = $resultArr['wrongSKU'];
+    		}
+    	}
+    	
+    	if (count($arrProducts) > 0) {
+    		$resp["errorMessage"] = "";
+    		$resp['isError'] = false;
+    		return $resp;
+    		} else {
+    			$resp["isError"] = true;
+    			$resp["errorMessage"] = "No ordered products in stock";
+    			$this->logger->LogWarn("znectDBAdapter:putOrder: " . $resp["errorMessage"]);
+    		}
+    		return $resp;
+    }
+    
+    public function isSkuAvailable($order) {
+    	
+    	$passedItems = $order->getItems(); //items are updated in this method
+    	foreach ($passedItems as $oi) {
+    		$passedSku[] = $oi->getSku($order->getPartner ()->getSkuChangeCase ());
+    	}
+    	try {
+    		$inventory = $this->db->getInventory($order->getTrader()->getId(), 0 /*partner 0*/, $passedSku);
+    		foreach($inventory as $p){
+    			$pItem['sku'] = strtolower($p->getSku());
+    			$pItem['product_id'] = $p->getId();
+    			$pItem['qty'] = intval ($p->getQuantity());
+    			$pItem['qty'] > 0 ? $pItem['is_in_stock'] = true :$pItem['is_in_stock'] = false;
+    			$returnSku[] = $pItem;
+    		}
+    			
+    		$retArr = array(); //
+    		$retArr["is_in_stock"] = true; //
+    		foreach ($passedItems as $passedItem) {
+    			$found = false;
+    			foreach ($returnSku as $ak => $returnItem) {
+    				$passedItemSku = strtolower($passedItem->getSku());
+    				$index = array_search($passedItemSku, $returnItem);
+    				if ($index == 'sku') {
+    					if (($returnItem['qty']) > 0 &&
+    							($returnItem['is_in_stock'] == true) &&
+    							intval($returnItem['qty']) >= intval($passedItem->getQty())) {
+    								$passedItem->setInStock(true);
+    								$passedItem->setHasChanged(true);
+    								$order->setHasInStockItems(true);
+    								if($order->getPartner()->getCustomPrice() == "yes") {
+    									$retArr["inStockItem"][] = array(
+    											'product_id' => $returnItem['product_id'],
+    											'qty' => intval($passedItem->getQty()),
+    											'custom_price' => $passedItem->getPrice()
+    									);
+    								} else {
+    									$retArr["inStockItem"][] = array(
+    											'product_id' => $returnItem['product_id'],
+    											'qty' => intval($passedItem->getQty())
+    									);
+    								}
+    								$returnItem['qty'] = intval ($returnItem['qty']) - intval($passedItem->getQty());
+    							} else {
+    								$passedItem->setInStock(false);
+    								$passedItem->setType('denySku');
+    								$retArr["is_in_stock"] = false;
+    								$order->setHasOutofStockItems(true);
+    								$passedItem->setHasChanged(true);
+    								$retArr["outOfStockSKU"][] = $passedItem->getSku($order->getPartner ()->getSkuChangeCase ());
+    							}
+    							$found = true;
+    				}
+    			}
+    			if (!$found) {
+    				$passedItem->setInStock(false);
+    				$order->setHasOutofStockItems(true);
+    				$passedItem->setType('denySku');
+    				$passedItem->setInvalidSku(true);
+    				$passedItem->setHasChanged(true);
+    				$retArr["is_in_stock"] = false;
+    				$retArr["wrongSKU"][] = $passedItem->getSku();
+    			}
+    		}
+    	} catch (Exception $e) {
+    		$retArr["is_in_stock"] = false;
+    		$order->setHasOutofStockItems(true);
+    		$retArr["exceptionMessage"] = $e->getMessage();
+    		$this->logger->LogWarn("znectDBAdapter:isSkuAvailable: ". $retArr["exceptionMessage"]);
+    		return false;
+    	}
+    
+    	return $retArr;
+    }
 }

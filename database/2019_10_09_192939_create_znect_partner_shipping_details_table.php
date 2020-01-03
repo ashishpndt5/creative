@@ -13,6 +13,7 @@ class CreateZnectPartnerShippingDetailsTable extends Migration
      */
     public function up()
     {
+    	Schema::dropIfExists('znect_partner_shipping_details');
         Schema::create('znect_partner_shipping_details', function (Blueprint $table) {
             //$table->bigIncrements('id');
             $table->integer('trader_id');

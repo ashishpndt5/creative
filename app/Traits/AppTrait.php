@@ -43,5 +43,9 @@ trait AppTrait {
 		$order->setPartnerId($order->getPartner()->getId());
 		return $db->putOrder($order);
 	}
+	
+	public function logOrders($trader_id, $partner_id, $poNumber, $soNumber, $status, $rawOrder) {
+		
+	}
  
 }

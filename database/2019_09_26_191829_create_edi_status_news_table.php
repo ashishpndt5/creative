@@ -13,6 +13,7 @@ class CreateEdiStatusNewsTable extends Migration
      */
     public function up()
     {
+    	Schema::dropIfExists('edi_status_news');
         Schema::create('edi_status_news', function (Blueprint $table) {
             $table->integer('id');
 			$table->integer('status_id');

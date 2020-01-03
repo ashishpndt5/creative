@@ -13,6 +13,7 @@ class CreateTraderPartnersTable extends Migration
      */
     public function up()
     {
+    	Schema::dropIfExists('trader_partners');
         Schema::create('trader_partners', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->integer('trader_id')->unsigned();

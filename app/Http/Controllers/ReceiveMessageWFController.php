@@ -8,12 +8,14 @@ use App\Trader;
 use App\TraderPartner;
 use App\EdiStatusNew;
 use App\Http\Controller\AdapterController;
-//use App\Http\Controllers\WayfairAdapterController;
+use App\Http\Controllers\WayfairAdapterController;
 use App\Traits\AppTrait;
+use Config;
 
 class ReceiveMessageWFController extends Controller
 {
 	public $trader;
+	public $partner;
 	public $traderPartners;
 	public $partnerAdapter;
 	use AppTrait;
@@ -24,38 +26,51 @@ class ReceiveMessageWFController extends Controller
 		$traderId;
 		$partnerId;
 		$fileName;
-		
+		$this->traderId = $traderId;
+		$this->setPartnerId($partnerId);
 		$data = DB::table('traders')->get();
 		//$comment = Trader::find(1)->TraderPartner()->where('id', 1)->first()->get();
 		//$comment = Trader::find(1)->TraderPartner()->where('id', 5)->get();
 		//$comment = Trader::where("trader_id",5)->first();
-		$trader = Trader::find($traderId)->trader_partners;
-		$this->trader = Trader::find($traderId);
+		$traderPartner = Trader::find($traderId)->trader_partners->first()->getOriginal();
+		$this->trader = Trader::find($traderId)->first()->getOriginal();
 		//$this->traderPartners = Trader::find($traderId)->trader_partners;
 		//$this->traderPartners = TraderPartner::find($partnerId);
-		$this->traderPartners = TraderPartner::where('partnerId',$partnerId)->where('trader_id',5)->get();
-		$controller = new Controller();
-		$controller->storage($this->trader, $this->traderPartners);
+		$this->traderPartners = TraderPartner::where('partnerId',$partnerId)->where('trader_id',$traderId)->get()->first()->getOriginal();
+		
+		//$controller = new Controller();
+		$this->setPartner($partnerId);
+		//$controller->storage($this->trader, $this->traderPartners);
+		$this->storage($this->trader, $this->traderPartners);
 		//$comment = TraderPartner::All();
 		//dd($this->traderPartners);
-		$this->transaction($controller,$fileName);
+		$this->transaction($fileName,$traderId,$partnerId);
 	}
 
-	public function transaction($controller,$fileName) {
+	public function transaction($fileName,$traderId,$partnerId) {
 		
-		$tr = $controller->getTrader();
-		$p = $this->traderPartners[0]->getAttributes();
+		$tr = $this->trader;
+		//$p = $this->traderPartners[0]->getAttributes();
 		//$dd = $this->traderPartners[0]->getOriginal();
-		$class= "App\Http\Controllers";
-		$orderAdapter = $this->traderPartners[0]->getOriginal('getOrderAdapter');		
+		//$class= "App\Http\Controllers";
+		//$orderAdapter = $this->traderPartners[0]->getOriginal('getOrderAdapter');
+		
+		//$orderAdapter = $this->traderPartners->getOrderAdapter;
+		$traderPartners = TraderPartner::where('partnerId',$partnerId)->where('trader_id',$traderId)->get()->first();
+		//$traderPartners = TraderPartner::find(1);
+		$getOrderAdapter = $traderPartners->getOrderAdapter;
+		
 		//AdapterController::getMessageType('file');
 		//AdminController $admin;
 		//$this->partnerAdapter = new WayfairAdapterController();
-		$this->partnerAdapter = new WayfairAdapterController();
+		$className = __NAMESPACE__ . '\\' . $getOrderAdapter;
+		$this->partnerAdapter =  new $className;
+		//$this->partnerAdapter = new WayfairAdapterController();
 		//$c = "WayfairAdapterController()";
 		//$class = new $c;
 		//$this->partnerAdapter = new $class;
-		$transactionType =  $this->partnerAdapter->getMessageType($fileName,$controller);
+		$partnerid = $this->getPartnerId();
+		$transactionType =  $this->partnerAdapter->getMessageType($fileName);
 		//$partnerCommunicationAdapterName = (string) $partner->getGetOrderAdapter();
 		switch ($transactionType) {
 			case "Order":
@@ -74,16 +89,19 @@ class ReceiveMessageWFController extends Controller
 	}
 	
 	function readOrder($fileName, $messageType) {
+		
 		$ediStatusNew = new EdiStatusNew;
 		//$orderArray = $this->partnerCommunicationAdapter->processIncomingMessage($fileName, $messageType, $this->partner);
 		$orderArray = $this->partnerAdapter->processIncomingMessage($fileName, $messageType);
 		//$rules = new znectRules($this->trader, $this->partner);
 		$orderArrays[] = $orderArray;
+		$trader_id = Config::get('filesystems.trader_id');
+		$partner_id = Config::get('filesystems.partner_id');
 		foreach ($orderArrays as $ak => $order) {
 			$oo = $order->poNumber;
 			//$o = $order->poNumber();
 			//$isEligible = $this->dbObject->isEligibleToProcess($this->getTrader()->getId(), $this->getPartner()->getId(), $order->getPoNumber());
-			$isEligible = $ediStatusNew->isEligibleToProcess(5, 1, $order->poNumber);
+			$isEligible = $ediStatusNew->isEligibleToProcess($trader_id, $partner_id, $order->poNumber);
 			if (!$isEligible['flag']) {
 				unset($orderArrays[$ak]);
 				continue;
@@ -95,8 +113,9 @@ class ReceiveMessageWFController extends Controller
 				$zDB->deleteCancelledOrder($this->getTrader()->getId(), $this->getPartner()->getId(), $order->getPoNumber());
 			}
 		
-			$this->dbObject->logOrder($this->getTrader()->getId(), $this->getPartner()->getId(), $order->getPoNumber(), $order->getSoNumber(), "RC", $order->getRawOrder());
-			try {
+			//$this->dbObject->logOrder($this->getTrader()->getId(), $this->getPartner()->getId(), $order->getPoNumber(), $order->getSoNumber(), "RC", $order->getRawOrder());
+			$this->logOrder($trader_id, $partner_id, $order->getPoNumber(), $order->getSoNumber(), "RC", $order->getRawOrder());
+			/*try {
 				$order->setTrader($this->getTrader());
 				$order->setPartner($this->getPartner());
 				$newOrder = $rules->applyRules($order);
@@ -107,7 +126,7 @@ class ReceiveMessageWFController extends Controller
 			} catch (Exception $ex) {
 				$this->logger->LogFatal("receiveMessageWF:readOrder: Exception Caught", $ex . getMessage());
 				exit;
-			}
+			}*/
 		}
 		return $orderArrays;
 	}
@@ -117,8 +136,8 @@ class ReceiveMessageWFController extends Controller
 		 
 		foreach ($orderArray as $thisOrder) {
 			$thisOrder->setTrader($this->trader);
-			$thisOrder->setPartner($this->partner);
-			$result = $zDB->saveOrder($thisOrder); // Added for Order to insert in DB
+			$thisOrder->setPartner($this->traderPartners);
+			$result = $this->saveOrder($thisOrder); // Added for Order to insert in DB
 			if(!result){
 				$this->logger->LogError("receiveMessageWF:writeOrder: DB Adapter:putOrder failed ");
 				$updateParameters = array( "status"=>"ER", "ErrorMassage"=>"Unable to insert into znect DB");
