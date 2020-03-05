@@ -49,9 +49,9 @@ class Trader extends Model
     /**
      * Get the comments for the blog post.
      */
-    public function trader_partners () {    
-        return $this->hasMany('App\TraderPartner');
-        //return $this->hasMany('App\TraderPartner', 'traderId');
+    public function trader_partners () {
+        //return $this->hasMany('App\TraderPartner');
+        return $this->hasMany('App\TraderPartner', 'trader_id');
        // return $this->hasMany(TraderPartner::class);
     }
 

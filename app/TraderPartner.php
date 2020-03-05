@@ -41,7 +41,8 @@ class TraderPartner extends Model
 	 */
 	public function trader()
 	{
-	    return $this->belongsTo('App\Trader','traderId');
+	   // return $this->belongsTo('App\Trader','traderId');
+	    return $this->belongsTo('App\Trader');
 	    //return $this->belongsTo(Trader::class);
 	}
 }

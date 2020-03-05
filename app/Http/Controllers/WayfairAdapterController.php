@@ -5,31 +5,15 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Http\Controllers\AdapterController;
 
-class WayfairAdapterController extends Controller
+class WayfairAdapterController extends AdapterController
 {
 	public $baseAdapter;
-	public function __construct()	{
+	public function __construct($traderId = null, $partnerId = null) {
 		$baseAdapter = new Controller();
 		$this->baseAdapter = $baseAdapter;
 		//parent::__construct();
 		//$this->revisionable = $revisionable;
-	}
-	
-    public function getOrder($ediMessage) {
-    	//return ' func getorder...';
-    	//return $this->baseAdapter->getMessageType();
-    	$messageType = $this->baseAdapter->getOrder($ediMessage);
-    	return $messageType;
-	}
-	
-	public function getMessageType_1($filename,$controller) {
-		//return $this->baseAdapter->getMessageType($filename,$controller);
-		$messageType = $this->getMessageType($filename,$controller);
-		//$messageType = $controller->getMessageType($filename,$controller);
-		return $messageType;
-	}
-	
-	public function processIncomingMessage_1($fileName, $messageType) {
-		return $this->baseAdapter->processIncomingMessage($filename,$controller);
+		$this->setTraderId($traderId);
+		$this->setPartnerId($partnerId);
 	}
 }

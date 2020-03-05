@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Http\Controllers\PartnerController;
 
 class TraderController extends Controller {
     private $id;
@@ -30,15 +31,67 @@ class TraderController extends Controller {
     private $AS2Id;
     private $venderIdOrderFile;
   	private $checkSku = false;
+	
+  	public function getId() {
+  		return $this->id;
+  	}
+  	 
+  	public function setId($id) {
+  		$this->id = $id;
+  	}
+  	
+  	public function getCheckSku() {
+  	  return $this->checkSku;
+  	}
+  	
+  	public function setCheckSku($value) {
+  	  $this->checkSku = $value;
+  	}  
+        
+    public function getAS2Id() {
+      return $this->AS2Id;
+    }
+    
+    public function setAS2Id($value) {
+      $this->AS2Id = $value;
+    }
 
-  	function __construct() { }
-
+    function __construct() {
+        
+    }
+    
+    public function getVatCheckRequired() {
+    	return $this->vatCheckRequired;
+    }
+    
+    public function setVatCheckRequired($vatCheckRequired) {
+    	$this->vatCheckRequired = $vatCheckRequired;
+    }
+    
+    
+    public function getAddressCheckRequired() {
+    	return $this->addressCheckRequired;
+    }
+    
+    public function setaddressCheckRequired($addressCheckRequired) {
+    	$this->addressCheckRequired = $addressCheckRequired;
+    }
+    
+    
+    public function getErpAdapterVersion() {
+    	return $this->erpAdapterVersion;
+    }
+    
+    public function setErpAdapterVersion($erpAdapterVersion) {
+    	$this->erpAdapterVersion = $erpAdapterVersion;
+    }
   	
 
     public function getPartner($partnerId) {
         foreach ($this->partners as $thisPartner) {
             //var_dump($thisPartner);
-            if ($thisPartner->getId() != strval($partnerId)) {
+            //if ($thisPartner->getId() != strval($partnerId)) {
+        	if ($thisPartner->getPartnerId() != strval($partnerId)) {
                 continue;
             } else {
                 return $thisPartner;
@@ -118,14 +171,206 @@ class TraderController extends Controller {
         $this->setAddress($address);
         
         //get partners for the Trader
-        $partnerRecords = $dbSqls->getPartners($traderId);
+        $partnerRecords = $dbSqls->getTraderPartners($traderId);
         foreach ($partnerRecords as $partnerDetails) {
-            $tempPartner = new partner();
+            $tempPartner = new PartnerController();
             $tempPartner->initializePartner($partnerDetails);
             if (strtoupper($tempPartner->getType()) != strtoupper("buyer") && strtoupper($tempPartner->getType()) != strtoupper("seller")) {
                 throw new Exception('Unknown partner type: ' . $tempPartner->getType());
             }
             $this->partners[] = $tempPartner;
         }
+    }
+    
+    public function initializeTraderPartner($traderId) {
+    	
+    	$details = $this->getTraderDetails($traderId);
+    	foreach ($details as $varName => $value) {
+    		if (!is_numeric($varName)) {
+    			$this->set($varName, $value);
+    		}
+    	}
+    	
+    	/*
+    	 * //get trader address from db
+	        $traderAddress = $dbSqls->getTraderAddress($traderId);
+	        $address = new address();
+	        foreach ($traderAddress as $varName => $value) {
+	            if (!is_numeric($varName)) {
+	                $address->set($varName, $value);
+	            }
+	        }
+	        $this->setAddress($address);
+    	 */
+    	
+    	//get partners for the Trader
+    	$partnerRecords = $this->getTraderPartners($traderId);
+    	foreach ($partnerRecords as $partnerDetails) {
+    		$tempPartner = new PartnerController();
+    		$tempPartner->initializePartner($partnerDetails);
+    		if (strtoupper($tempPartner->getType()) != strtoupper("buyer") && strtoupper($tempPartner->getType()) != strtoupper("seller")) {
+    			//throw new Exception('Unknown partner type: ' . $tempPartner->getType());
+    		}
+    		$this->partners[] = $tempPartner;
+    	}
+    	
+    }
+    public function getErpDatabaseURL() {
+    	return $this->erpDatabaseURL;
+    }
+    
+    public function setErpDatabaseURL($erpDatabaseURL) {
+    	$this->erpDatabaseURL = $erpDatabaseURL;
+    }
+    
+    public function getErpDatabaseUserName() {
+    	return $this->erpDatabaseUserName;
+    }
+    
+    public function setErpDatabaseUserName($erpDatabaseUserName) {
+    	$this->erpDatabaseUserName = $erpDatabaseUserName;
+    }
+    
+    public function getErpDatabasePassword() {
+    	return $this->erpDatabasePassword;
+    }
+    
+    public function setErpDatabasePassword($erpDatabasePassword) {
+    	$this->erpDatabasePassword = $erpDatabasePassword;
+    }
+    
+    public function getErpEdiDatabaseName() {
+    	return $this->erpEdiDatabaseName;
+    }
+    
+    public function setErpEdiDatabaseName($erpEdiDatabaseName) {
+    	$this->erpEdiDatabaseName = $erpEdiDatabaseName;
+    }
+    
+    public function setPartners($partners) {
+    	$this->partners [] = $partners;
+    }
+    
+    public function getPartners()   {
+    	return $this->partners;
+    }
+    
+    public function setOrderEmailAddress($orderEmailAddress)    {
+    	$this->orderEmailAddress = $orderEmailAddress;
+    }
+    
+    public function getOrderEmailAddress()  {
+    	return $this->orderEmailAddress;
+    }
+    
+    public function get($property) {
+    	if (property_exists($this, $property)) {
+    		return $this->$property;
+    	}
+    	else {
+    		echo "\n" . $property . " does not exist for get \n";
+    	}
+    }
+    
+    public function getDUNSNumber() {
+    	return $this->DUNSNumber;
+    }
+    
+    public function setDUNSNumber($dunsNumber) {
+    	$this->DUNSNumber = $dunsNumber;
+    }
+    
+  
+    
+    public function getVenderIdOrderFile() {
+    	return $this->venderIdOrderFile;
+    }
+    
+    public function setVenderIdOrderFile($value) {
+    	$this->venderIdOrderFile = $value;
+    }
+    
+    public function getAddress() {
+    	return $this->address;
+    }
+    
+    public function setAddress($address) {
+    	$this->address = $address;
+    }
+    
+    public function getDefaultWarehouseID() {
+    	return $this->defaultWarehouseID;
+    }
+    public function setDefaultWarehouseID($defaultWarehouseID) {
+    	$this->defaultWarehouseID = $defaultWarehouseID;
+    }
+    public function getPackingSlipGenTiming() {
+    	return $this->packingSlipGenTiming;
+    }
+    public function setPackingSlipGenTiming($packingSlipGenTiming) {
+    	$this->packingSlipGenTiming = $packingSlipGenTiming;
+    }
+    
+    public function getEdiInterchangeID() {
+    	return $this->ediInterchangeID;
+    }
+    
+    public function setEdiInterchangeID($ediInterchangeID) {
+    	$this->ediInterchangeID = $ediInterchangeID;
+    }
+    
+    public function getEdiInterchangeQualifier() {
+    	return $this->ediInterchangeQualifier;
+    }
+    
+    public function setEdiInterchangeQualifier($ediInterchangeQualifier) {
+    	$this->ediInterchangeQualifier = $ediInterchangeQualifier;
+    }
+    
+    public function getErpAdapter() {
+    	return $this->erpAdapter;
+    }
+    
+    public function setErpAdapter($erpAdapter) {
+    	$this->erpAdapter = $erpAdapter;
+    }
+    
+    public function getEmailAddress() {
+    	return $this->emailAddress;
+    }
+    
+    public function setEmailAddress($emailAddress) {
+    	$this->emailAddress = $emailAddress;
+    }
+    
+    public function getErpURL() {
+    	return $this->erpURL;
+    }
+    
+    public function setErpURL($erpURL) {
+    	$this->erpURL = $erpURL;
+    }
+    
+    public function getErpUser() {
+    	return $this->erpUser;
+    }
+    
+    public function setErpUser($erpUser) {
+    	$this->erpUser = $erpUser;
+    }
+    
+    public function getErpPassword() {
+    	return $this->erpPassword;
+    }
+    
+    public function setErpPassword($erpPassword) {
+    	$this->erpPassword = $erpPassword;
+    }
+    public function getName() {
+    	return $this->name;
+    }
+    
+    public function setName($name) {
+    	$this->name = $name;
     }
 }

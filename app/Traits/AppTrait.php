@@ -37,10 +37,11 @@ trait AppTrait {
 		return 'get data method';
 	}
 	
-	public function saveOrder($order) {
+	public function saveOrder_0($order) {
 		$db = $this->db;
-		$order->setTraderId($order->getTrader()->getId());
-		$order->setPartnerId($order->getPartner()->getId());
+		$tt = $order->getTrader()['id'];
+		$order->setTraderId($order->getTrader()['id']);
+		$order->setPartnerId($order->getPartner()['id']);
 		return $db->putOrder($order);
 	}
 	

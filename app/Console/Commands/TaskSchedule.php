@@ -45,8 +45,8 @@ class TaskSchedule extends Command
         $partner = $this->argument('partner');
         echo 'partner : '.$partner;
 
-        $fp = new FileProcessorController();
-
-        $fp->boot($trader,$partner);
+        //$fp = new FileProcessorController();
+        FileProcessorController::boot($trader,$partner);
+        //$fp->boot($trader,$partner);
     }
 }

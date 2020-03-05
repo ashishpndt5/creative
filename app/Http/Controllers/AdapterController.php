@@ -3,6 +3,10 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Http\Controllers\MagentoOrderController;
+use App\Http\Controllers\NewOrderController;
+use App\Http\Controllers\AddressController;
+use App\Http\Controllers\ItemController;
 use Config;
 use Storage;
 
@@ -10,21 +14,64 @@ class AdapterController extends Controller
 {
 	public $trader;
 	public $partner;
-	public function __construct() {
+	public $partnerId;
+	public $traderId;
+	
+	public function __construct($traderId = null, $partnerId = null) {
 		//$controller = new Controller();
 		//$this->trader = $controller->getTrader();
 		//$this->partner = $controller->getPartner();
+		$this->setTraderId($traderId);
+		$this->setPartnerId($partnerId);
 	}
 	
-    public function getMessageType($fileName,$controller) {
-    	$this->partner = $controller->getPartner();
+	public function setTrader($trader) {
+	
+		return $this->trader = $trader;
+	}
+	
+	public function getTrader() {
+		 
+		return $this->trader;
+	}
+	
+	public function setPartner($partner) {
+	
+		$this->partner = $partner;
+	}
+	
+	public function getPartner() {
+	
+		return $this->partner;
+	}
+	
+	public function getPartnerId() {
+	
+		return $this->partnerId;
+	}
+	
+	public function setPartnerId($partner_id) {
+	
+		$this->partnerId = $partner_id;
+	}
+	
+	public function setTraderId($trader_id) {
+	
+		$this->traderId = $trader_id;
+	}
+	
+	public function getTraderId() {
+	
+		return $this->traderId;
+	}
+	
+    public function getMessageType($fileName, $partner) {
+    	
         $msgType = "";
-        //$tradeInterface = strtoupper($this->partner->tradeInterface());
-        $tradeInterface = strtoupper($this->partner[0]->getOriginal('tradeInterface'));
+        $tradeInterface = strtoupper($partner->tradeInterface);
         switch ($tradeInterface) {
             case "EDI":
-                $msgType = $this->getEdiMessageType($fileName,$controller);
-                //$msgType1 = $this->getEdiMessagecustom($msgType,$controller);
+                $msgType = $this->getEdiMessageType($fileName, '');
                 break;
             case "API":
                	if(is_array($fileName))
@@ -47,16 +94,18 @@ class AdapterController extends Controller
         return $msgType;
     }
 
-    private function getEdiMessageType_1($fileName,$controller = NULL) {
+    public function getEdiMessageType($fileName, $tPartner = null) {
+    	
         $msgType = "";
         $functionId = "";
-        $ediFileStream = $this->getMessageData($fileName,$controller);
-        $tPartner = $controller->getPartner();
+        $ediFileStream = $this->getMessageData($fileName);
+        //$tPartner = $this->getPartner();
 		//$tPartner = $this->getPartner();
+		
 		if(!empty($tPartner)) {
-			$fieldSeperator = strtoupper($tPartner[0]->getOriginal('fieldSeperator'));
+			$fieldSeperator = strtoupper($tPartner['fieldSeperator']);
 			//$fieldSeperator = $this->getpartner()->getFieldSeperator();
-			$segmentSeperator = $tPartner[0]->getOriginal('ediSegmentSeperator');
+			$segmentSeperator = $tPartner['ediSegmentSeperator'];
 		} else {
 			$fieldSeperator = "*";
 			$segmentSeperator = "~";
@@ -104,22 +153,25 @@ class AdapterController extends Controller
         return $msgType;
     }
     
-    public function getMessageData_1($fileName,$controller = NULL) {
+    public function getMessageData($fileName) {
+    	
     	$path = Config::get('filesystems.path');
     	//$tr = $controller->getTrader();
-    	$trader_id = Config::get('filesystems.trader_id');
-    	$partner_id = Config::get('filesystems.partner_id');
+    	$partner_id = $this->getPartnerId();
+    	$trader_id = $this->getTraderId();
+    	//$trader_id = Config::get('filesystems.trader_id');
+    	//$partner_id = Config::get('filesystems.partner_id');
     	$fileNamePath = $trader_id. DIRECTORY_SEPARATOR .$partner_id. DIRECTORY_SEPARATOR . 'in'. DIRECTORY_SEPARATOR . $fileName;
     	$path = Storage::disk('public')->path($fileNamePath);
     	$fileContents = file_get_contents($path);
     	return $fileContents;
     }
     
-	public function parseEDIMessage_1($contentOfTheEDIFile) {
-		$tempPartner = new partner;
+	public function parseEDIMessage($contentOfTheEDIFile) {
+		//$tempPartner = new partner;
         $tempPartner = $this->getPartner();
-        $this->logger->LogInfo("ediAdapter: parseEdiMessage: edifile contents");
-        $this->logger->LogInfo("$contentOfTheEDIFile");
+        //$this->logger->LogInfo("ediAdapter: parseEdiMessage: edifile contents");
+        //$this->logger->LogInfo("$contentOfTheEDIFile");
 		if(!empty($tempPartner)) {
 			$fieldSeperator = $this->getpartner()->getFieldSeperator();
 			$segmentSeperator = $this->getpartner()->getEdiSegmentSeperator();
@@ -192,8 +244,12 @@ class AdapterController extends Controller
 					$segmentType = $field;
 					
                     $foundDuplicate = in_array($field, $existingSegment);
-					
-					if ($foundDuplicate === TRUE) {
+                    $segmentCounter;
+					//if ($foundDuplicate === TRUE && isset($segmentCounter[$field])) {
+                    if ($foundDuplicate === TRUE) {
+                    	if(!isset($segmentCounter[$field])) {
+                    		$segmentCounter[$field] = 0;
+                    	}
                         $segmentCounter[$field]++;
 					} else {
                         $segmentCounter[$field] = 0;
@@ -211,4 +267,92 @@ class AdapterController extends Controller
 		}
 		return $message;
 	}
+	
+	public function processIncomingMessage($fileName, $messageType) {
+		//echo 'processIncomingMessage';
+		$ediFileStream = $this->getMessageData($fileName);
+		//echo $ediFileStream;
+		$ediArrays = $this->parseEDIMessage($ediFileStream);
+		unset($ediArrays[0]);
+		$isaccepted = true;
+		foreach ($ediArrays as $ediMessage) {
+			if ($ediMessage['ST'][1][1] == "997") {
+				$isaccepted &= $this->process997($ediMessage);
+			} elseif ($ediMessage['ST'][1][1] == "850") {
+				$orderArray = $this->getOrder($ediMessage);
+			}
+		}
+		return $orderArray;
+	}
+	
+
+	public function getOrder($ediMessage) {
+		 
+		$order = new NewOrderController();
+		$itemsArray = array();
+		$order->setPoNumber($ediMessage["BEG"][0][3]);
+		$order->setEdiTransactionType("850");
+		$order->setEdiTrasactionSetControlNumber($ediMessage["ST"][1][2]);
+		$order->setEdiTransactionSetIdentifierCode($order->getTransactionSetIdentifierCode());
+		$addressIndex = 0;
+		//Figure out which of the N1 records is billing
+		//vs. shipping
+		foreach ($ediMessage["N1"] as $addressRecord) {
+			 
+			if ($addressRecord[1] == "BT") {
+				$billingAddressIndex = $addressIndex;
+				$addressIndex++;
+			}
+			if ($addressRecord[1] == "ST") {
+				$shippingAddressIndex = $addressIndex;
+				$addressIndex++;
+			}
+		}
+	
+		//set addresses
+		$saAddress = new AddressController();
+		$saAddress->setFirstName($ediMessage["N1"][$shippingAddressIndex][2]);
+		$saAddress->setLastName($ediMessage["BEG"][0][3]);
+		//$saAddress->setCompany($ediMessage["N3"][$shippingAddressIndex][1]);
+		$saAddress->setStreet1($ediMessage["N3"][$shippingAddressIndex][1]);
+		$saAddress->setStreet1(isset($ediMessage["N3"][$shippingAddressIndex][2]) ? $ediMessage["N3"][$shippingAddressIndex][2] : '');
+		$saAddress->setPhone($ediMessage["PER"][$shippingAddressIndex][4]);
+		$saAddress->setCity($ediMessage["N4"][$shippingAddressIndex][1]);
+		$saAddress->setStateAbbrev($ediMessage["N4"][$shippingAddressIndex][2]);
+		$saAddress->setZip($ediMessage["N4"][$shippingAddressIndex][3]);
+		$saAddress->setCountry($ediMessage["N4"][$shippingAddressIndex][4]);
+		$order->setSaAddress($saAddress);
+	
+		$baAddress = new AddressController();
+		$baAddress->setFirstName($ediMessage["N1"][$billingAddressIndex][2]);
+		$baAddress->setLastName($ediMessage["BEG"][0][3]);
+		//$saAddress->setCompany($ediMessage["N3"][$shippingAddressIndex][1]);
+		$baAddress->setStreet1($ediMessage["N3"][$billingAddressIndex][1]);
+		$baAddress->setStreet1(isset($ediMessage["N3"][$billingAddressIndex][2]) ? $ediMessage["N3"][$billingAddressIndex][2] : '');
+		$baAddress->setPhone($ediMessage["PER"][$billingAddressIndex][4]);
+		$baAddress->setCity($ediMessage["N4"][$billingAddressIndex][1]);
+		$baAddress->setStateAbbrev($ediMessage["N4"][$billingAddressIndex][2]);
+		$baAddress->setZip($ediMessage["N4"][$billingAddressIndex][3]);
+		$saAddress->setCountry($ediMessage["N4"][$billingAddressIndex][4]);
+		$order->setBaAddress($baAddress);
+	
+	
+		foreach ($ediMessage["PO1"] as $orderItem) {
+			$item = new ItemController();
+			$item->setLineNum($orderItem[1]);
+			$item->setQty($orderItem[2]);
+			$item->setPrice($orderItem[4]);
+			$item->setSku(trim($orderItem[7]));
+			$itemsArray[] = $item;
+		}
+	
+		$order->setItems($itemsArray);
+		$order->setRawOrder($ediMessage["ediMessage"]);
+		//self::setOrderArray($order);
+		$order->setOrderArray($order);
+		$order->setOrderArray($order);
+		$order->setPoDate($ediMessage["BEG"][0][4]);
+		return $order;
+	}
+	
 }

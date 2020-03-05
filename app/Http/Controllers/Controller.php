@@ -10,14 +10,19 @@ use View;
 use Illuminate\Support\Facades\Auth;
 use Config;
 use Storage;
-use App\Http\Controllers\MagentoOrderController;
-use App\Http\Controllers\NewOrderController;
-use App\Http\Controllers\AddressController;
-use App\Http\Controllers\ItemController;
+use App\Trader;
 use App\TraderPartner;
 use App\RefCounter;
 use App\EdiStatusNew;
 use App\NewOrder;
+use App\OrderInfo;
+use App\Address;
+use App\Items;
+use App\Inventory;
+use App\Http\Controller\AdapterController;
+use DB;
+use Illuminate\Support\Facades\Schema;
+use Log;
 
 class Controller extends BaseController
 {
@@ -31,16 +36,21 @@ class Controller extends BaseController
 	
     use AuthorizesRequests, DispatchesJobs, ValidatesRequests;
     
-    //public function __construct() {
+    public function __construct() {
     	
     	//View::share('user', Auth::user());
     	//View::share('social', Social::all());
-  //  }
+   }
     
-    public function storage($trader = null, $partner = null) {
+   /* public function storage($trader = null, $partner = null) {
     	
     	$this->trader = $trader;
     	$this->partner = $partner;
+    }
+    
+    public function setTrader($trader) {
+    	 
+    	return $this->trader = $trader;
     }
     
     public function getTrader() {
@@ -53,6 +63,11 @@ class Controller extends BaseController
     	$this->partnerId = $partner;
     }
     
+    public function getPartner() {
+    
+    	return $this->partner;
+    }
+    
     public function getPartnerId() {
     	 
     	return $this->partnerId;
@@ -63,28 +78,17 @@ class Controller extends BaseController
     	$this->partnerId = $partner_id;
     }
     
-    public function getPartner() {
+    public function setTraderId($trader_id) {
     
-    	return $this->partner;
+    	$this->traderId = $trader_id;
     }
     
-    public function processIncomingMessage($fileName, $messageType) {
-    	//echo 'processIncomingMessage';
-    	$ediFileStream = $this->getMessageData($fileName);
-    	//echo $ediFileStream;
-    	$ediArrays = $this->parseEDIMessage($ediFileStream);
-    	unset($ediArrays[0]);
-    	$isaccepted = true;
-    	foreach ($ediArrays as $ediMessage) {
-    		if ($ediMessage['ST'][1][1] == "997") {
-    			$isaccepted &= $this->process997($ediMessage);
-    		} elseif ($ediMessage['ST'][1][1] == "850") {
-    			$orderArray = $this->getOrder($ediMessage);
-    		}
-    	}
-    	return $orderArray;
-    	return $this->getOrderArray();
-    }
+    public function getTraderId($trader_id) {
+    
+    	return $this->traderId;
+    }    
+    */   
+
     
     public function getMessageData_1($fileName) {
     	$fileContents = file_get_contents($fileName);
@@ -102,7 +106,7 @@ class Controller extends BaseController
     	return $fileContents;
     }
     
-    public function parseEDIMessage($contentOfTheEDIFile) {
+    public function parseEDIMessage_old($contentOfTheEDIFile) {
     	//$tempPartner = new partner;
     	//$tempPartner = $this->partner;
     	$tempPartner = $this->getPartner();
@@ -205,7 +209,7 @@ class Controller extends BaseController
     	return $message;
     }
     
-    public function getEdiMessageType($fileName) {
+    public function getEdiMessageType_11($fileName) {
     	$msgType = "";
     	$functionId = "";
     	$ediFileStream = $this->getMessageData($fileName);
@@ -263,10 +267,12 @@ class Controller extends BaseController
     }
     
 
-    public function getMessageType($fileName) {
+    public function getMessageType_00($fileName) {
     	
     	//$this->partner = $this->getPartner();
     	//$partner_id = $this->getPartnerId();
+    	$tempPartner = $this->getPartner();
+    	$t = $tempPartner['id'];
     	$traderId = Config::get('filesystems.trader_id');
     	$partnerId = Config::get('filesystems.partner_id');
     	//$this->partner = $this->getPartner();
@@ -308,74 +314,7 @@ class Controller extends BaseController
     public function setTransactionTypeCode($transactionTypeCode) {
     	$this->transactionTypeCode = $transactionTypeCode;
     }
-    
-    public function getOrder($ediMessage) {
-    	
-    	$order = new NewOrderController();
-    	$itemsArray = array();
-    	$order->setPoNumber($ediMessage["BEG"][0][3]);
-    	$order->setEdiTransactionType("850");
-    	$order->setEdiTrasactionSetControlNumber($ediMessage["ST"][1][2]);
-    	$order->setEdiTransactionSetIdentifierCode($order->getTransactionSetIdentifierCode());
-    	$addressIndex = 0;
-    	//Figure out which of the N1 records is billing
-    	//vs. shipping
-    	foreach ($ediMessage["N1"] as $addressRecord) {
-    			
-    		if ($addressRecord[1] == "BT") {
-    			$billingAddressIndex = $addressIndex;
-    			$addressIndex++;
-    		}
-    		if ($addressRecord[1] == "ST") {
-    			$shippingAddressIndex = $addressIndex;
-    			$addressIndex++;
-    		}
-    	}
-    
-    	//set addresses
-    	$saAddress = new AddressController();
-    	$saAddress->setFirstName($ediMessage["N1"][$shippingAddressIndex][2]);
-    	$saAddress->setLastName($ediMessage["BEG"][0][3]);
-    	//$saAddress->setCompany($ediMessage["N3"][$shippingAddressIndex][1]);
-    	$saAddress->setStreet1($ediMessage["N3"][$shippingAddressIndex][1]);
-    	$saAddress->setStreet1(isset($ediMessage["N3"][$shippingAddressIndex][2]) ? $ediMessage["N3"][$shippingAddressIndex][2] : '');
-    	$saAddress->setPhone($ediMessage["PER"][$shippingAddressIndex][4]);
-    	$saAddress->setCity($ediMessage["N4"][$shippingAddressIndex][1]);
-    	$saAddress->setStateAbbrev($ediMessage["N4"][$shippingAddressIndex][2]);
-    	$saAddress->setZip($ediMessage["N4"][$shippingAddressIndex][3]);
-    	$saAddress->setCountry($ediMessage["N4"][$shippingAddressIndex][4]);
-    	$order->setSaAddress($saAddress);
-    
-    	$baAddress = new AddressController();
-    	//$baAddress->setFirstName("BBB Dropship");
-    	$baAddress->setLastName($ediMessage["BEG"][0][3]);
-    	//$saAddress->setCompany($ediMessage["N3"][$shippingAddressIndex][1]);
-    	$baAddress->setStreet1($ediMessage["N3"][$billingAddressIndex][1]);
-    	$baAddress->setStreet1(isset($ediMessage["N3"][$billingAddressIndex][2]) ? $ediMessage["N3"][$billingAddressIndex][2] : '');
-    	$baAddress->setPhone($ediMessage["PER"][$billingAddressIndex][4]);
-    	$baAddress->setCity($ediMessage["N4"][$billingAddressIndex][1]);
-    	$baAddress->setStateAbbrev($ediMessage["N4"][$billingAddressIndex][2]);
-    	$baAddress->setZip($ediMessage["N4"][$billingAddressIndex][3]);
-    	$saAddress->setCountry($ediMessage["N4"][$billingAddressIndex][4]);
-    	$order->setBaAddress($baAddress);
-    
-    
-    	foreach ($ediMessage["PO1"] as $orderItem) {
-    		$item = new ItemController();
-    		$item->setLineNum($orderItem[1]);
-    		$item->setQty($orderItem[2]);
-    		$item->setPrice($orderItem[4]);
-    		$item->setSku(trim($orderItem[7]));
-    		$itemsArray[] = $item;
-    	}
-    
-    	$order->setItems($itemsArray);
-    	$order->setRawOrder($ediMessage["ediMessage"]);
-    	//self::setOrderArray($order);
-    	$order->setOrderArray($order);
-    	$this->setOrderArray($order);
-    	return $order;
-    }
+
     
     public function setOrderArray($order) {
     	$this->orderArray[] = $order;
@@ -392,16 +331,16 @@ class Controller extends BaseController
         $workflowSql = new RefCounter();
         $workflowId = "";
         if ($status == "RC") {
-            $workflow = $workflowSql->getNewWorkFlowId();
-            $workflowId = $workflow['counterValue'];
+            $workflow = $this->getNewWorkFlowId();
+            $workflowId = $workflow->counterValue;
         }
         else {
-            $workflowId = $workflowSql->getWorkFlowId($traderId, $partnerId, $PoNumber);
+            $workflowId = $this->getWorkFlowId($traderId, $partnerId, $PoNumber);
         }
         $dd;
         //ensure workflow id is not null or empty
         if (empty($workflowId)) {
-            $workflowId = $workflowSql->getNewWorkFlowId();
+            $workflowId = $this->getNewWorkFlowId();
         }
         
         if($status == "ER") {
@@ -432,8 +371,8 @@ class Controller extends BaseController
         	
         	if($eStatusNew && $status == "RC") {
         		//$workflowUpd = new RefCounter($workflow['id']);
-        		$workflowUpd = RefCounter::find($workflow['id']);
-        		$workflowUpd->counterValue = $workflow['counterValue'] + 1;
+        		$workflowUpd = RefCounter::find($workflow->id);
+        		$workflowUpd->counterValue = $workflow->counterValue + 1;
         		$upd = $workflowUpd->save();
         		$upd;
         	}
@@ -454,10 +393,14 @@ class Controller extends BaseController
         	} else {
         		//$sql = "UPDATE newOrder SET workflowId= '$workflowId', soNumber='$soNumber', status='$status', comment='$comment', errored='N', errorDescription='' where ";
         		//$sql .= " traderId='{$traderId}' and partnerId='{$partnerId}' and poNumber = '{$PoNumber}'";
-        		$up = NewOrder::where(
-        				['traderId'=>$traderId,'partnerId'=>$partnerId,'poNumber'=>$PoNumber])->update(
-        						['status'=>$status,'comment'=>$comment,'workflowId'=>$workflowId,'soNumber'=>$soNumber,'errored'=>'N','errorDescription'=>'']
-        						);
+        		if (NewOrder::where('poNumber', '=', $PoNumber)->exists() && $soNumber) {
+	        		$up = NewOrder::where(
+	        				['traderId'=>$traderId,'partnerId'=>$partnerId,'poNumber'=>$PoNumber])->update(
+	        						['status'=>$status,'comment'=>$comment,'workflowId'=>$workflowId,'soNumber'=>$soNumber,'errored'=>'N','errorDescription'=>'']
+	        						);
+	        	} else {
+	        		$PoNumber;
+	        	}
         	}
         }
     }
@@ -469,55 +412,216 @@ class Controller extends BaseController
     	return $this->putOrder($order);
     }
     
-    public function putOrder($order) {
-    	
-    	$checkSku = $order->getTrader()->getCheckSku();
-    	if($checkSku && !$order->getReRun()){
-    		$resultArr = $this->isSkuAvailable($order);
-    	}else{
-    		$resultArr = $this->setSkuAvailable($order);
-    	}
-    	$arrProducts = array();
-    	
-    	if (count($resultArr['inStockItem']) > 0) {
-    		$arrProducts = $resultArr['inStockItem'];
-    	}
-    	
-    	if (((integer) $partner->getShipComplete()) && !($resultArr['is_in_stock'])) {
-    			
-    		if (isset($resultArr['exceptionMessage'])) {//count of out of stock ,,,, count of invalid
-    			$resp["errorMessage"] = $resultArr['exceptionMessage'];
-    		} else {
-    			$resp["errorMessage"] = '';
-    			if (isset($resultArr['outOfStockSKU'])) {
-    				$resp["errorMessage"] = "Received order for out of stock sku " . implode(',', $resultArr['outOfStockSKU']);
-    			}
-    			if (isset($resultArr['wrongSKU'])) {
-    				$resp["errorMessage"] .= " Received order for incorrect sku " . implode(',', $resultArr['wrongSKU']);
-    			}
-    		}
-    		$resp["isError"] = true;
-    		$this->logger->LogWarn("znectDBAdapter:putOrder: " . $resp["errorMessage"]);
-    		return $resp;
-    	} elseif (!((integer) $partner->getShipComplete())) {
-    		if(isset($resultArr['outOfStockSKU'])){
-    			$resp['outOfStock'] = $resultArr['outOfStockSKU'];
-    		}elseif(isset($resultArr['wrongSKU'])){
-    			$resp['wrongSKU'] = $resultArr['wrongSKU'];
-    		}
-    	}
-    	
-    	if (count($arrProducts) > 0) {
-    		$resp["errorMessage"] = "";
-    		$resp['isError'] = false;
-    		return $resp;
-    		} else {
-    			$resp["isError"] = true;
-    			$resp["errorMessage"] = "No ordered products in stock";
-    			$this->logger->LogWarn("znectDBAdapter:putOrder: " . $resp["errorMessage"]);
-    		}
-    		return $resp;
-    }
+	public function putOrder($order) {
+		//$this->getDbConnection ();
+		//$logger = $this->getLogger();
+		$poNumber = $order->getPoNumber();
+		//$traderId = $order->getTrader()['id'];
+		//$partnerId = $order->getPartner()['id'];
+		$traderId = $order->getTrader()->getId();
+		$partnerId = $order->getPartner()->getPartnerId();
+		
+		$errKVParams['traderId'] = $traderId;
+		$errKVParams['partnerId'] = $partnerId;
+		$errKVParams['poNumber'] = $poNumber;
+		
+		
+		try {
+			$status = $this->orderIsEligibleToProcess($traderId, $partnerId, $poNumber);
+			if(!$status){
+				return false;
+			}
+			$addlFields = array();
+			//$addlFields['traderId'] = $traderId;
+			//$addlFields['partnerId'] = $partnerId;
+			
+			$result = $this->serializeTableObjects ( 'newOrder', $order, $addlFields);
+			//$result = $this->serializeObjects ( 'newOrder', array($order), $addlFields);
+			//$result = false;
+			if (!$result) {
+				Log::warning("newOrder table insert failed for Trader :". $traderId .' Partner Id: '.$partnerId);
+				//throw new Exception("newOrder table insert failed");
+				return false;
+			}
+			$newOrderId = $result; //mysql_insert_id ();
+			$order->setId($newOrderId);
+			
+			$soNumber = $order->getSoNumber();
+			if(empty($soNumber)){
+				$soNumber = strval($newOrderId);
+				//if(sizeof($soNumber) < 9){
+				if(strlen($soNumber) < 9) {
+					$soNumber = str_pad($newOrderId, 8, "0", STR_PAD_LEFT);
+					$soNumber = '1' . $soNumber;
+				}
+				$order->setSoNumber($soNumber);
+			}
+			
+			/*$sqlOrderInfo = "INSERT INTO `orderInfo` (`traderId` , `partnerId` , `newOrderId` , `poNumber` , `status` , `createdDate`) VALUES ('" . $traderId . "','" . $partnerId . "','" . $newOrderId . "','" . $order->getPoNumber () . "','RC','" . date ( 'd-m-Y' ) . "')";
+			$result = $this->execQueryHelper ( $sqlOrderInfo );
+			if(!$result){
+				throw new Exception("orderInfo table insert failed");
+			}*/
+			
+			$orderInfo = new OrderInfo();
+			//$orderInfo->workflowId = ($order->getWorkFlowId) ? $order->getWorkFlowId : 0;
+			$orderInfo->traderId = $traderId;
+			$orderInfo->partnerId = $partnerId;
+			$orderInfo->newOrderId = $newOrderId;
+			$orderInfo->poNumber = ($poNumber) ? $poNumber : 0;
+			$orderInfo->soNumber = ($soNumber) ? $soNumber : '';
+			$orderInfo->fileName = '';
+			$orderInfo->status = ($order->getStatus()) ? $order->getStatus() : '';
+			$orderInfo->ErrorMassage = '';
+			$orderInfo->exception = '';
+			$orderInfo->enteredInERP = '';
+			//$orderInfo->createdDate = date('d-m-Y');
+			$result = $orderInfo->save();
+						
+			/*$qCommnets = $order->getOrderComments ();
+			$orderComment = new OrderComment();
+			
+			$sqlOrderComments = "INSERT INTO `orderComments` ( `newOrderId`, `comments` ) VALUES ( '" . $newOrderId . "' ,'" . $qCommnets . "' )";
+			
+			$result = $this->execQueryHelper ( $sqlOrderComments );*/
+			if(!$result){
+				Log::warning("OrderInfo table insert failed for Trader :". $traderId .' Partner Id: '.$partnerId);
+				//throw new Exception("OrderInfo table insert failed");
+			}
+			
+			
+			$addlFields = array();
+			$addlFields['type'] = 'shipping';
+		//	$order->getSaAddress()->setNewOrderId($newOrderId);
+			//$result = $this->serializeObjects ( 'address', array($order->getSaAddress()), $addlFields);
+			
+			$address = new Address();
+			$address->newOrderId = $newOrderId;
+			$address->type = 'shipping';
+			$address->firstName = ($order->getSaAddress()->getFirstName()) ? ($order->getSaAddress()->getFirstName()) : '';
+			$address->lastName = ($order->getSaAddress()->getLastName()) ? ($order->getSaAddress()->getLastName()) : '';
+			$address->company = ($order->getSaAddress()->getCompany()) ? ($order->getSaAddress()->getCompany()) : '';
+			$address->phone = ($order->getSaAddress()->getPhone()) ? ($order->getSaAddress()->getPhone()) : '';
+			$address->street1 = ($order->getSaAddress()->getStreet1()) ? ($order->getSaAddress()->getStreet1()) : '';
+			$address->street2 = ($order->getSaAddress()->getStreet2()) ? ($order->getSaAddress()->getStreet2()) : '';
+			$address->city = ($order->getSaAddress()->getCity()) ? ($order->getSaAddress()->getCity()) : '';
+			$address->stateAbbrev = ($order->getSaAddress()->getStateAbbrev()) ? ($order->getSaAddress()->getStateAbbrev()) : '';
+			$address->zip = ($order->getSaAddress()->getZip()) ? ($order->getSaAddress()->getZip()) : 0;
+			$address->country = ($order->getSaAddress()->getCountry()) ? ($order->getSaAddress()->getCountry()) : '';
+			$address->dcNumber = '';
+			$result = $address->save();
+			$order->getSaAddress()->setNewOrderId($newOrderId);
+			
+			if(!$result){
+				Log::warning("shipping address table insert failed for Trader :". $traderId .' Partner Id: '.$partnerId);
+				//throw new Exception("shipping address table insert failed");
+			}
+	
+			$addlFields['type'] = 'billing';
+			$order->getBaAddress()->setNewOrderId($newOrderId);
+			//$result = $this->serializeObjects ( 'address', array($order->getBaAddress()), $addlFields);
+			$address = new Address();
+			$address->newOrderId = $newOrderId;
+			$address->type = 'billing';
+			$address->firstName = ($order->getBaAddress()->getFirstName()) ? ($order->getBaAddress()->getFirstName()) : '';
+			$address->lastName = ($order->getBaAddress()->getLastName()) ? ($order->getBaAddress()->getLastName()) : '';
+			$address->company = ($order->getBaAddress()->getCompany()) ? ($order->getBaAddress()->getCompany()) : '';
+			$address->phone = ($order->getBaAddress()->getPhone()) ? ($order->getBaAddress()->getPhone()) : '';
+			$address->street1 = ($order->getBaAddress()->getStreet1()) ? ($order->getBaAddress()->getStreet1()) : ''; 
+			$address->street2 = ($order->getBaAddress()->getStreet2()) ? ($order->getBaAddress()->getStreet2()) : '' ;
+			$address->city = ($order->getBaAddress()->getCity()) ? ($order->getBaAddress()->getCity()) : '';
+			$address->stateAbbrev = ($order->getBaAddress()->getStateAbbrev()) ? ($order->getBaAddress()->getStateAbbrev()) : '';
+			$address->zip = ($order->getBaAddress()->getZip()) ? ($order->getBaAddress()->getZip()) : '';
+			$address->country = ($order->getBaAddress()->getCountry()) ? ($order->getBaAddress()->getCountry()) : '';
+			$address->dcNumber = '';
+			$result = $address->save();
+			if(!$result){
+				Log::warning("billing address table insert failed for Trader :". $traderId .' Partner Id: '.$partnerId);
+				//throw new Exception("billing address table insert failed");
+			}
+			//$dd;
+			unset($addlFields['type']);
+			foreach ( $order->getItems () as $item ) {
+				$itype = $item->getType(); 
+				if(empty($itype)){
+					$item->setType('sku');
+					$type = 'sku';
+				}
+				
+				$item->setNewOrderId($newOrderId);
+				//$result = $this->serializeObjects ( 'item', array($item), $addlFields);
+				$items = new Items();
+				$items->newOrderId = $newOrderId;
+				$items->type = $type;
+				$items->sku = ($item->getSku()) ? ($item->getSku()) : '';
+				$items->partnerSku = ($item->getPartnerSku()) ? ($item->getPartnerSku()) : '';
+				$items->price = ($item->getPrice()) ? ($item->getPrice()) : '';
+				$items->total = ($item->getTotal()) ? ($item->getTotal()) : '';
+				$items->qty = ($item->getQty()) ? ($item->getQty()) : '';
+				$items->description = ($item->getDescription()) ? ($item->getDescription()) : '';
+				$items->lineNum = ($item->getLineNum()) ? ($item->getLineNum()) : '';
+				$items->sdq = ($item->getSdq()) ? ($item->getSdq()) : '';
+				$items->inStock = ($item->getInStock()) ? ($item->getInStock()) : '';
+				$items->invalidSku = ($item->getInvalidSku()) ? ($item->getInvalidSku()) : '';
+				$items->manufacturer = ($item->getManufacturer()) ? ($item->getManufacturer()) : '';
+				$items->weight = ($item->getWeight()) ? ($item->getWeight()) : '';
+				$items->msg = ($item->getMsg()) ? ($item->getMsg()) : '';
+				
+				$result = $items->save();
+				
+				if(!$result) {
+					$errKVParams['sku'] = $item->getSku();
+					Log::warning("item table insert failed for Trader :". $traderId .' Partner Id: '.$partnerId. ' order id:'. $newOrderId);
+					//throw new Exception("item table insert failed");
+				}
+				//$itemId = mysql_insert_id ();
+				//$item->setId($itemId);
+				/*foreach ( $item->getItemWarehouses() as $iw ) {
+					$iw->setItemId($itemId);
+					//$result = $this->serializeObjects ( 'itemWarehouse', array($iw));
+					
+					if(!$result){
+						$errKVParams['sku'] =  $item->getSku();
+						$errKVParams['itemId'] =  $itemId;
+						throw new Exception("itemWarehouse table insert failed");
+					}
+				}*/
+			}
+			$rejectedItems = $order->getRejectedItems ();
+			if (!empty($rejectedItems)) {
+				$addlFields['type'] = 'denySku';
+				//$result = $this->serializeObjects ('item', $rejectedItems, $addlFields);
+				$items = new Items();
+				$items->newOrderId = $newOrderId;
+				$items->sku = ($item->getSku()) ? ($item->getSku()) : '';
+				$items->partnerSku = ($item->getPartnerSku()) ? ($item->getPartnerSku()) : '';
+				$items->price = ($item->getPrice()) ? ($item->getPrice()) : '';
+				$items->total = ($item->getTotal()) ? ($item->getTotal()) : '';
+				$items->qty = ($item->getQty()) ? ($item->getQty()) : '';
+				$items->description = ($item->getDescription()) ? ($item->getDescription()) : '';
+				$items->lineNum = ($item->getLineNum()) ? ($item->getLineNum()) : '';
+				$items->sdq = ($item->getSdq()) ? ($item->getSdq()) : '';
+				$items->inStock = ($item->getInStock()) ? ($item->getInStock()) : '';
+				$items->invalidSku = ($item->getInvalidSku()) ? ($item->getInvalidSku()) : '';
+				$items->manufacturer = ($item->getManufacturer()) ? ($item->getManufacturer()) : '';
+				$items->weight = ($item->getWeight()) ? ($item->getWeight()) : '';
+				$items->msg = ($item->getMsg()) ? ($item->getMsg()) : '';
+				
+				$result = $items->save();
+				
+				if(!$result){
+					Log::warning("rejected item table insert failed for Trader :". $traderId .' Partner Id: '.$partnerId. ' order id:'. $newOrderId);
+					//throw new Exception("rejected item table insert failed");
+				}
+			}
+		} catch (Exception $e) {
+			$errKVParams['Exception'] = $e->getMessage();
+			//$this->loggerHelper("znectDbSqls:putOrder", "failed. Exception caught.", $errKVParams);
+			Log::warning("Controller:putOrder", "failed. Exception caught.", $errKVParams);
+			return false;
+		}
+		return true;
+	}
     
     public function isSkuAvailable($order) {
     	
@@ -587,10 +691,298 @@ class Controller extends BaseController
     		$retArr["is_in_stock"] = false;
     		$order->setHasOutofStockItems(true);
     		$retArr["exceptionMessage"] = $e->getMessage();
-    		$this->logger->LogWarn("znectDBAdapter:isSkuAvailable: ". $retArr["exceptionMessage"]);
+    		//$this->logger->LogWarn("znectDBAdapter:isSkuAvailable: ". $retArr["exceptionMessage"]);
+    		Log::warning("Controller:isSkuAvailable: ". $retArr["exceptionMessage"]);
     		return false;
     	}
     
     	return $retArr;
     }
+    
+    public function orderIsEligibleToProcess($traderId, $partnerId, $poNumber) {
+    	/*$this->getDbConnection ();
+    
+    	$sql = "SELECT * FROM orderInfo WHERE ";
+    	$sql .="traderId='" . $traderId . "' AND  partnerId = '" . $partnerId . "' AND poNumber ='" . $poNumber . "'";
+    	
+    	$up = OrderInfo::where(
+    			['traderId'=>$traderId,'partnerId'=>$partnerId,'poNumber'=>$poNumber])->update(
+    					['status'=>$status,'comment'=>$comment,'workflowId'=>$workflowId,'soNumber'=>$soNumber,'errored'=>'N','errorDescription'=>'']
+    					);
+    					*/
+    	$result = OrderInfo::where(['partnerId'=>$partnerId,'traderId'=>$traderId,'poNumber'=>$poNumber])->get()->first();
+    	//$rs = mysql_query($sql);
+    	//$result = mysql_fetch_assoc($rs);
+    	//$dd;
+    	if ($result) {
+    		if ($result['status'] == 'RR' || $result['status'] == 'RC')  {
+    			return true;
+    		} else {
+    			return false;
+    		}
+    	} else {
+    		return true;
+    	}
+    }
+    
+    public function serializeTableObjects($table, $object, $addData) {
+    	
+    	$newOrder = new NewOrder();
+    	$sono = $object->getSoNumber();
+    	$newOrder->traderId = ($object->getTrader()->getId()) ? $object->getTrader()->getId() : 0;
+    	//$d = $object['trader_id'];
+    	$newOrder->partnerId = ($object->getPartner()->getPartnerId()) ? $object->getPartner()->getPartnerId() : 0;
+    						   
+    	$newOrder->poNumber = $object->getPoNumber();
+    	$newOrder->workflowId = 1;
+    	$newOrder->soNumber = ($object->getSoNumber()) ? ($object->getSoNumber()) : '';
+    	$newOrder->status = ($object->getStatus()) ? $object->getStatus() : '';
+    	$newOrder->comment = '';
+    	$newOrder->genCartonLabel = ($object->getGenCartonLabel()) ? $object->getGenCartonLabel() : 0;
+    	$newOrder->error_number = 0;
+    	$newOrder->sent_to_seller = 'N';
+    	$newOrder->invoiceNumber = '';
+    	$newOrder->errorDescription = '';
+    	$newOrder->packingSlipFileName = ($object->getPackingSlipFileName()) ? $object->getPackingSlipFileName() : '';
+    	$newOrder->shippingLabelFileName = ($object->getShippingLabelFileName()) ? $object->getShippingLabelFileName() : '';
+    	$newOrder->shipmentPriority = ($object->getShipmentPriority()) ? $object->getShipmentPriority() : '';
+    	$newOrder->shipmentCarrier = ($object->getShipmentCarrier()) ? $object->getShipmentCarrier() : '';
+    	$newOrder->sellerPartner = 1;
+    	$newOrder->poDate = ($object->getPoDate()) ? $object->getPoDate() : '';
+    	$newOrder->shipDate = ($object->getShipDate()) ? $object->getShipDate() : '';
+    	$newOrder->ediTrasactionSetControlNumber = ($object->getEdiTrasactionSetControlNumber()) ? $object->getEdiTrasactionSetControlNumber() : '';
+    	$newOrder->ediTransactionSetIdentifierCode = ($object->getEdiTransactionSetIdentifierCode()) ? $object->getEdiTransactionSetIdentifierCode() : '';
+    	$newOrder->ediTransactionType = ($object->getEdiTransactionType()) ? $object->getEdiTransactionType() : '';
+    	$newOrder->generateShippingLabel = ($object->getGenerateShippingLabel()) ? $object->getGenerateShippingLabel() : '';   	
+    	$newOrder->rawOrder = ($object->getRawOrder()) ? $object->getRawOrder() : '';
+    	$newOrder->hasOutofStockItems = ''; //($object->getRawOrder()) ? $object->getRawOrder() : '';
+    	$newOrder->shippingLabel = ($object->getShippingLabel()) ? $object->getShippingLabel() : '';
+    	$newOrder->packingSlip = ($object->getPackingSlip()) ? $object->getPackingSlip() : '';
+    	$newOrder->shipByDate = ($object->getShipDate()) ? $object->getShipDate() : '';
+    	$newOrderSave = $newOrder->save();
+    	$insertedId = $newOrder->id;
+    	return $insertedId;
+    }
+    
+    public function updateOrderInfoStatus($tableName, $keys, $updateArray) {
+    	//$datetime = Carbon::now();
+    	
+    	$result = DB::table($tableName)->where([[$keys]])->update($updateArray);
+    	return $result;
+    }
+    
+    public function getInventory($traderId, $partnerId, $skus = null) {
+    	
+    	$errKVParams['traderId'] = $traderId;
+    	$errKVParams['partnerId'] = $partnerId;
+    
+    	//$sql = "select * from znectInventory where traderId = '{$traderId}' and partnerId = '{$partnerId}'"; //inventory by traderId
+    	$data = Inventory::where(['partnerId'=>$partnerId,'traderId'=>$traderId]);
+    	
+    	if(isset($skus)) {  		
+    		$data->whereIn('sku', $skus);
+    	};
+    	
+    	$result = $data->first()->getOriginal();
+    	//$result;
+    	
+    	if ($result === false) {
+    		//$this->loggerHelper("znectDbSqls:getInventory", "get inventory query failed", $errKVParams);
+    		//throw new Exception("znectDbSqls:getInventory failed");
+    		Log::warning("Controller:getInventory failed for sku : ". $skus. ' Trader id :'. $traderId. ' Partner id:  '.$partnerId);
+    	}
+    	if(empty($result)) {
+    		return $result;
+    	}
+    	return $result;
+    	//return $this->hydrateObjects( "inventories", Inventory, $result);
+    }
+    
+    public function hydrateObjects($class,$classObj, $records) {
+    	//fetch column names
+    	$tableName = $class;
+    	//$sql = "SHOW COLUMNS FROM {$tableName}";
+    	$data = $this->getTableColumns($tableName);
+    	
+    	//$data = $this->execQueryandFetchRowsHelper($sql);
+    	if(empty($data)) {
+    		Log::warning("Controller:hydrateObjects failed. Error: ". $class);
+    		//throw new Exception("hydrateObjects failed. Error: " . mysql_error());
+    	}
+    
+    	$zObjects = array();
+    	foreach($records as $rec) {
+    		$zObj = new $classObj($this->getLogger());
+    		foreach ($data as $colName) {
+    			$method = 'set'.ucfirst($colName['Field']);
+    			if(method_exists($classObj, $method)){
+    				$zObj->{$method}($rec[$colName['Field']]);
+    			}
+    		}
+    		$zObjects[] = $zObj;
+    	}
+    	return $zObjects;
+    }
+    
+    public function getTableColumns($table)
+    {
+    	//return DB::getSchemaBuilder()->getColumnListing($table);
+    
+    	// OR
+    
+    	return Schema::getColumnListing($table);
+    
+    }
+    
+    public function getTraderDetails($trader_id = null) {
+    	//$trader_id;
+    	if(isset($trader_id)) {
+    		$traderDetails = Trader::where('id',$trader_id)->first()->getOriginal();
+    		return $traderDetails;
+    	} else {
+    		return null;
+    	}
+    }
+    
+    public function getTraderPartners($trader_id) {
+    	$trader_id;
+    	if(isset($trader_id)) {
+    		//$partnerList = TraderPartner::where('traderId',$trader_id)->all();
+    		$partnerLists = DB::table('trader_partners')->where('traderId', '=', $trader_id)->get()->toArray();
+    		return $partnerLists;
+    	} else {
+    		return null;
+    	}
+    }
+    
+    public function updateObject($zObj, $errKVParams=null) {
+    	
+    	//$this->getDbConnection ();
+    	//$logger = $this->getLogger();
+    
+    	if(!is_object($zObj)){
+    		return;
+    	}
+    	if(!method_exists($zObj, "getHasChanged")){//doesn't require to be persisted into the database
+    		return;
+    	}
+    
+    	$reflect = new ReflectionClass($zObj);
+    	$props = $reflect->getProperties(ReflectionProperty::IS_PUBLIC | ReflectionProperty::IS_PROTECTED | ReflectionProperty::IS_PRIVATE);
+    	$parents = array();
+    	while ($parent = $reflect->getParentClass()) {
+    		$p = $parent->getProperties(ReflectionProperty::IS_PUBLIC | ReflectionProperty::IS_PROTECTED | ReflectionProperty::IS_PRIVATE);
+    		$props = array_merge($props, $p);
+    		$reflect = $parent;
+    	}
+    
+    	foreach($props as $prop){
+    		$method = 'get'.ucfirst($prop->getName());
+    
+    		if(method_exists($zObj, $method)){
+    			$zProp = $zObj->{$method}();
+    		}else{// no getter assume not a property to be worried about!
+    			continue;
+    		}
+    		if(is_array($zProp)){
+    			foreach($zProp as $zChildObj){
+    				$this->updateObject($zChildObj);
+    			}
+    		}else{
+    			if(!is_object($zProp)){
+    				continue;
+    			}
+    			if(!method_exists($zProp, "getHasChanged")){//doesn't require to be persisted into the database
+    				continue;
+    			}
+    			$this->updateObject($zProp);
+    		}
+    	}
+    
+    	if($zObj->getHasChanged()){
+    		try {
+    			$result = $this->serializeObjects(get_class($zObj), array($zObj));
+    			if(!$result) {
+    				//$this->loggerHelper("znectDbSqls:updateOrder", "{$class} table insert failed", $errKVParams);
+    				Log::warning("Controller : updateOrder ". $class. ' table insert failed');
+    				return false;
+    			}
+    		} catch (Exception $e) {
+    			$errKVParams['Error'] = $e->getMessage();
+    			Log::warning("Controller : updateOrder ". $class. ' table insert failed. '. $errKVParams);
+    			//$this->loggerHelper("znectDbSqls:updateObject", "{$class} table insert failed", $errKVParams);
+    			return false;
+    		}
+    	}
+    }
+    
+    public function getNewWorkFlowId() {
+    	try {
+    		$workFlowId = '';
+    		$refCounters = DB::table('ref_counters')->where('counterName', '=', 'workflowId')->get()->toArray();
+    		/*$sql = "SELECT counterValue FROM znectRefCounter WHERE counterName = 'workflowId'";
+    		$this->getDbConnection();
+    		$result = mysql_query($sql) or die(mysql_error());
+    		$row = mysql_fetch_array($result);*/
+    		$workFlowId = $refCounters[0]->counterValue;
+    		if($workFlowId) {
+    			//update the counter value by 1
+	    		//$sql = "UPDATE znectRefCounter SET counterValue = counterValue+1 WHERE counterName = 'workflowId'";
+	    		//$result = mysql_query($sql) or die(mysql_error());
+    			$up = DB::table('ref_counters')->where(
+    					['counterName'=>'workflowId'])->update(['counterValue'=>$workFlowId+1]);
+    		}
+    		return $refCounters[0];
+    	}  catch (Exception $ex) {
+    		$errorMsg = "Controller class getNewWorkFlowId() - Errror while getting a new workflow Id";
+    		echo "\n " . $errorMsg . "\n" . $ex->getTraceAsString();
+    		//throw new Exception($errorMsg, "43", $ex);
+    		//$this->logger->LogError($errorMsg . "\n" . $ex->getTraceAsString());
+    		Log::warning($errorMsg . "\n" . $ex->getTraceAsString());
+    		return false;
+    	}
+    }
+    
+	public function getWorkFlowId($traderId, $partnerId, $poNumber) {
+        try {
+        	//$workflowId = DB::table('edi_status_news')->where(['trader_id', '=', $traderId,'customer_id', '=',$partnerId,'customer_po', '=',$poNumber])->pluck('workFlowId');
+        	//$workflowId = EdiStatusNew::where(['partnerId'=>$partnerId,'traderId'=>$traderId,'poNumber'=>$poNumber])->get()->pluck('workFlowId');
+        	$workflowId = EdiStatusNew::where(['customer_id'=>$partnerId,'trader_id'=>$traderId,'customer_po'=>$poNumber])->first()->workflowId;
+        /*$sql = "SELECT workflowId FROM edi_status_new WHERE trader_id = '" . $traderId . "'" .
+                "AND customer_id = '" . $partnerId . "' AND customer_po = '" . $poNumber . "' AND status = 'RC'";
+        $this->getDbConnection();
+        $result = mysql_query($sql) or die(mysql_error());
+        $row = mysql_fetch_array($result);*/
+        return $workflowId;
+       // return $row['workflowId'];
+        }  catch (Exception $ex) {
+            $errorMsg = "znectDbSqls.php getWorkFlowId() - Errror " .
+                    "while getting workflow Id for p.o number # " . $poNumber;
+            echo "\n " . $errorMsg . "\n" . $ex->getTraceAsString();
+            //throw new Exception($errorMsg, "43", $ex);
+           // $this->logger->LogError($errorMsg . "\n" . $ex->getTraceAsString());
+            Log::warning($errorMsg . "\n" . $ex->getTraceAsString());
+            return false;
+        } 
+    }
+    
+    public function deleteCancelledOrder($traderId, $partnerId, $poNumber){
+    	$errKVParams['traderId'] = $traderId;
+    	$errKVParams['partnerId'] = $partnerId;
+    	$errKVParams['$poNumber'] = $poNumber;
+    	 
+    	if(empty($traderId) || empty($partnerId) || empty($poNumber)) {
+    		return false;
+    	}
+    	//$sql = "delete from newOrder where traderId = '{$traderId}' and partnerId= '$partnerId' and poNumber = '$poNumber'";
+    	$result = DB::table('new_orders')->where(['traderId' => $traderId, 'partnerId' => $partnerId, 'poNumber' => $poNumber])->delete();
+    	//$result = $this->execQueryHelper($sql);
+    	if ($result=== false) {
+    		//$this->loggerHelper("znectDbSqls:deleteCancelledOrder", " failed", $errKVParams);
+    		Log::warning("Controller:deleteCancelledOrder", " failed", $errKVParams);
+    		return false;
+    	}
+    	return $result;
+    }
+    
 }
