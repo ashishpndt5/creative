@@ -966,7 +966,8 @@ class Controller extends BaseController
         } 
     }
     
-    public function deleteCancelledOrder($traderId, $partnerId, $poNumber){
+    public function deleteCancelledOrder($traderId, $partnerId, $poNumber) {
+    	
     	$errKVParams['traderId'] = $traderId;
     	$errKVParams['partnerId'] = $partnerId;
     	$errKVParams['$poNumber'] = $poNumber;
@@ -983,6 +984,71 @@ class Controller extends BaseController
     		return false;
     	}
     	return $result;
+    }
+    
+    public function deleteSpecificStatus($traderId, $partnerId, $poNumber, $status) {
+    	
+    	$result = DB::table('edi_status_news')->where(['trader_id' => $traderId, 'customer_id' => $partnerId, 'customer_po' => $poNumber, 'status' => $status])->delete();
+    	if ($result=== false) {
+    		Log::warning("Controller:deleteCancelledOrder", " failed", $errKVParams);
+    		return false;
+    	}
+    	return $result;
+    }
+    
+    public function getPartnerRules($traderId, $partnerId) {
+    	$partnerRules = DB::table('partner_rules')->where(['trader_id' => $traderId, 'partner_id' => $partnerId])->get()->toArray();
+    	return $partnerRules;
+    }
+    
+    public function getValidTraderPartnerWarehouse($traderId, $partnerId, $direction="out") {
+    
+    	if (($traderId == NULL)  || ($partnerId == NULL))  {
+    		echo "Trader Id and Partner Id cannot null";
+    		return;
+    	}    	
+    	//$partnerRules = DB::table('partner_rules')->where(['trader_id' => $traderId, 'partner_id' => $partnerId])->get()->toArray();
+    	$partnerWH = DB::table('trader_partner_valid_warehouse')->where(['traderId' => $traderId, 'partnerId' => $partnerId,'direction'=>$direction])->get()->first();
+    	if(isset($partnerWH) && $partnerWH->warehouseId != '') {
+    		return $partnerWH->warehouseId;
+    	}
+    	return array("all");
+    }
+    
+    public function getPartnerWarehouses($traderId, $buyerPartnerId) {
+    	if (($traderId == NULL)  || ($buyerPartnerId == NULL))  {
+    		echo "Trader Id and buyerPartnerId Id cannot null";
+    		return;
+    	}
+    	$results = array();
+    	$partnerWareH = DB::table('partner_warehouse')->where(['traderId' => $traderId, 'buyer_partner_id' => $buyerPartnerId])->get()->toArray();
+    	//return $partnerRules;
+    	if($partnerWareH) {
+	    	foreach ($partnerWareH as $row) {
+	    		$results[$row['seller_partner_id']] = $row['warehouse_id'];
+	    	}
+    	}
+    	return $results;
+    }
+    
+    public function getMappingFromDB($sql) {
+    	
+    	/*$con = mysql_connect('localhost', 'root', '');
+    	if (!$con) {
+    		die('Could not connect: ' . mysql_error());
+    	}
+    	if (!$con) {
+    	
+    		die('Could not connect: ' . mysql_error());
+    	}
+    	$valueMap = array();
+    	mysql_select_db('orbit', $con);
+    	$result = mysql_query($sql) or die(mysql_error());
+    	while ($row = mysql_fetch_array($result)) {
+    		$valueMap[$row['current_value']] = $row['lookup_value'];
+    	}
+    	return $valueMap;
+    	*/
     }
     
 }

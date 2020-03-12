@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Operators - equal_to = eq, less_than = lt, less_than_or_equal_to = lte, greater_than = gt, greater_than_or_equal_to = gte,
+multiples of = mo
+
+RuleType - VALIDATION, UPDATE, ADD
+-->
+<Rules>
+    <Rule>
+        <RuleName>quantityCheck</RuleName>
+        <RuleNumber>1</RuleNumber>
+        <RuleType>VALIDATION</RuleType>
+        <DataElement>newOrder->item->qty</DataElement>
+        <Class>$newOrder</Class>
+        <isArray>TRUE</isArray>
+        <ArrayName>items</ArrayName>
+        <VariableName>qty</VariableName>
+        <EvalExpression>((($qty%4) == 0)?true:false)</EvalExpression>
+        <Expressions>
+            <LeftExpression>qty</LeftExpression>
+            <Operator>mo</Operator>
+            <RightExpression>1</RightExpression>
+        </Expressions>
+    </Rule>
+    <Rule>
+        <RuleName>shippingCoupon</RuleName>
+        <RuleNumber>2</RuleNumber>
+        <RuleType>UPDATE</RuleType>
+        <ObjectName>newOrder</ObjectName>
+        <FunctionName>setCouponCode</FunctionName>
+        <UpdateSource>Class</UpdateSource>
+        <UpdateSourceClassName>PARTNER</UpdateSourceClassName>
+        <UpdateSourceFunction>getCoupon</UpdateSourceFunction>
+    </Rule>
+    <Rule>
+        <RuleName>skuMapping</RuleName>
+        <RuleNumber>3</RuleNumber>
+        <RuleType>UPDATE</RuleType>
+        <Class>newOrder</Class>
+        <isArray>TRUE</isArray>
+        <ArrayName>items</ArrayName>
+        <VariableName>sku</VariableName>
+        <FunctionName>updateSKUs</FunctionName>
+        <UpdateSource>DB</UpdateSource>
+        <SQL>SELECT partner_sku as current_value, trader_sku as lookup_value from sku_mapping where trader_id='$trader_id' and partner_id = '$partner_id' and partner_sku in ($SKU)</SQL>
+    </Rule>
+    <Rule>
+        <RuleName>shippingItem</RuleName>
+        <RuleNumber>4</RuleNumber>
+        <RuleType>ADD</RuleType>
+        <Class>newOrder</Class>
+        <isArray>TRUE</isArray>
+        <ArrayName>items</ArrayName>
+        <AddSource>Class</AddSource>
+        <AddSourceClassName>PARTNER</AddSourceClassName>
+        <AddSourceFunction>getShippingItemSKU</AddSourceFunction>
+        <DataElement>$partner->shippingItemSKU</DataElement>
+    </Rule>
+    <Rule>
+        <RuleName>skuFilter</RuleName>
+        <RuleNumber>5</RuleNumber>
+        <Filters>
+            <Filter>
+                <FilterVariable>sku</FilterVariable>
+                <FilterValueSource>DB</FilterValueSource>
+                <SQL>SELECT filter_value from znect_rules_filter where trader_id='$trader_id' and partner_id = '$partner_id' and message_type = '$msgType' and variable_name = 'sku'</SQL>
+            </Filter>
+        </Filters>
+        <RuleType>UPDATE</RuleType>
+        <Class>product</Class>
+        <VariableName>quantity</VariableName>
+        <FunctionName>updateQuantity</FunctionName>
+        <UpdateSource>Expression</UpdateSource>
+        <Expressions>
+            <Expression>
+                <LeftExpression>quantity</LeftExpression>
+                <Operator>lt</Operator>
+                <RightExpression>3</RightExpression>
+                <IfTrueValue>0</IfTrueValue>
+                <IfFalseValue>1</IfFalseValue>
+            </Expression>
+        </Expressions>
+    </Rule>
+    <Rule>
+        <RuleName>skuDelete</RuleName>
+        <RuleNumber>6</RuleNumber>
+        <Filters>
+            <Filter>
+                <FilterVariable>sku</FilterVariable>
+                <FilterValueSource>DB</FilterValueSource>
+                <SQL>SELECT filter_value from znect_rules_filter where trader_id='$trader_id' and partner_id = '$partner_id' and message_type = '$msgType' and variable_name = 'sku'</SQL>
+            </Filter>
+        </Filters>
+        <RuleType>DELETE</RuleType>
+        <Class>product</Class>
+        <DeleteType>notFound</DeleteType>
+        <DeleteSource>DB</DeleteSource>
+        <DeleteSourceClassName>Product</DeleteSourceClassName>
+    </Rule>
+    <Rule>
+        <RuleName>skuTurnOff</RuleName>
+        <RuleNumber>8</RuleNumber>
+        <Filters>
+            <Filter>
+                <FilterVariable>sku</FilterVariable>
+                <FilterValueSource>DB</FilterValueSource>
+                <SQL>SELECT filter_value from znect_rules_filter where trader_id='$trader_id' and partner_id = '$partner_id' and message_type = '$msgType' and variable_name = 'sku'</SQL>
+            </Filter>
+        </Filters>
+        <RuleType>UPDATE</RuleType>
+        <Class>product</Class>
+        <VariableName>quantity</VariableName>
+        <FunctionName>updateQuantity</FunctionName>
+        <UpdateSource>Expression</UpdateSource>
+        <Expressions>
+            <Expression>
+                <LeftExpression>quantity</LeftExpression>
+                <Operator>lt</Operator>
+                <RightExpression>5</RightExpression>
+                <IfTrueValue>0</IfTrueValue>
+                <IfFalseValue>0</IfFalseValue>
+            </Expression>
+        </Expressions>
+    </Rule>
+    <Rule>
+        <RuleName>reverseSkuMapping</RuleName>
+        <RuleNumber>7</RuleNumber>
+        <RuleType>UPDATE</RuleType>
+        <Class>newOrder</Class>
+        <PartnerType>seller</PartnerType>
+        <isArray>TRUE</isArray>
+        <ArrayName>items</ArrayName>
+        <VariableName>sku</VariableName>
+        <FunctionName>updateSKUs</FunctionName>
+        <UpdateSource>DB</UpdateSource>
+        <SQL>SELECT trader_sku as current_value, partner_sku as lookup_value from sku_mapping where trader_id='$trader_id' and partner_id = '$partner_id' and trader_sku in ($SKU)</SQL>
+    </Rule> 
+	<Rule>
+        <RuleName>skuMapping</RuleName>
+        <RuleNumber>9</RuleNumber>
+        <RuleType>UPDATE</RuleType>
+        <Class>product</Class>
+        <isArray>TRUE</isArray>
+        <ArrayName>items</ArrayName>
+        <VariableName>sku</VariableName>
+        <FunctionName>updateSKUs</FunctionName>
+        <UpdateSource>DB</UpdateSource>
+        <SQL>SELECT trader_sku as current_value, partner_sku as lookup_value from sku_mapping where trader_id='$trader_id' and partner_id = '$partner_id' and trader_sku in ($SKU)</SQL>
+    </Rule>
+	<Rule>
+        <RuleName>skuBlackList</RuleName>
+        <RuleNumber>10</RuleNumber>
+        <Filters>
+            <Filter>
+                <FilterVariable>sku</FilterVariable>
+                <FilterValueSource>DB</FilterValueSource>
+                <SQL>SELECT filter_value from znect_rules_filter where trader_id='$trader_id' and partner_id = '$partner_id' and message_type = '$msgType' and variable_name = 'sku'</SQL>
+            </Filter>
+        </Filters>
+        <RuleType>DELETE</RuleType>
+        <Class>product</Class>
+        <DeleteType>Found</DeleteType>
+        <DeleteSource>DB</DeleteSource>
+        <DeleteSourceClassName>Product</DeleteSourceClassName>
+    </Rule>
+<Rule>
+        <RuleName>quantityCheck</RuleName>
+        <RuleNumber>11</RuleNumber>
+        <RuleType>VALIDATION</RuleType>
+        <DataElement>newOrder->item->qty</DataElement>
+        <Class>newOrder</Class>
+        <isArray>TRUE</isArray>
+        <ArrayName>items</ArrayName>
+        <VariableName>qty</VariableName>
+		<FunctionName>updatePackageQty</FunctionName>
+		<UpdateSource>DB</UpdateSource>
+		<Operator>mo</Operator>
+        <SQL>SELECT filter_value from znect_rules_filter where trader_id='$trader_id' and partner_id = '$partner_id' and message_type = '$msgType' and variable_name = 'qty'</SQL>
+    </Rule>
+    <Rule>
+        <RuleName>positiveQuantity</RuleName>
+        <RuleNumber>12</RuleNumber>
+        <RuleType>UPDATE</RuleType>
+        <Class>product</Class>
+        <VariableName>quantity</VariableName>
+        <FunctionName>setQuantity</FunctionName>
+        <UpdateSource>Class</UpdateSource>
+        <Expressions>
+            <Expression>
+                <LeftExpression>quantity</LeftExpression>
+                <Operator>lt</Operator>
+                <RightExpression>0</RightExpression>
+                <IfTrueValue>0</IfTrueValue>
+            </Expression>
+        </Expressions>
+    </Rule>
+    <Rule>
+        <RuleName>partnerSKUFilter</RuleName>
+        <RuleNumber>13</RuleNumber>
+        <RuleType>UPDATE</RuleType>
+        <Class>product</Class>
+        <isArray>TRUE</isArray>
+        <ArrayName>items</ArrayName>
+        <VariableName>sku</VariableName>
+        <FunctionName>updateSKUs</FunctionName>
+        <UpdateSource>DB</UpdateSource>
+        <SQL>SELECT trader_sku as current_value, partner_sku as lookup_value from sku_mapping where trader_id='$trader_id' and partner_id = '$partner_id' and trader_sku in ($SKU)</SQL>
+    </Rule>
+</Rules>

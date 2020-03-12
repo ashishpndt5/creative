@@ -362,6 +362,7 @@ class PartnerController extends Controller
         $this->setMessageTransfer ( $partnerInfo->messageTransfer );
         $this->setCustomPrice( $partnerInfo->customPrice );
         $traderId = $partnerInfo->traderId;
+        $partnerId = $partnerInfo->partnerId;
         /*
         $dbSqls = new znectDbSqls();
 
@@ -413,21 +414,21 @@ class PartnerController extends Controller
             $si->setRefCodeValuePairs($rvPairs);
         }
         $this->setShippingInfo($si);
-
+	*/
         //get partner rules
-        $partnerRules = $dbSqls->getPartnerRules($traderId, $this->getId());
+        $partnerRules = $this->getPartnerRules($traderId, $partnerId);
         foreach ($partnerRules as $currentRule) {
-            $this->setRule(intval($currentRule['ruleId']), (string) $currentRule['ruleName']);
+            $this->setRule(intval($currentRule->rule_id), (string) $currentRule->rule_name);
         }
         
         //get valid warehouses
-        $warehouses = $dbSqls->getValidTraderPartnerWarehouse($traderId, $this->getId());
+        $warehouses = $this->getValidTraderPartnerWarehouse($traderId, $partnerId);
         $this->setValidWarehouses($warehouses);
         
         //get seller partner warehouse ids
-        $partnerWarehouses = $dbSqls->getPartnerWarehouses($traderId, $this->getId());
+        $partnerWarehouses = $this->getPartnerWarehouses($traderId, $partnerId);
         $this->setSellerPartnerWarehouses($partnerWarehouses);
-        */
+        
         
     }
 

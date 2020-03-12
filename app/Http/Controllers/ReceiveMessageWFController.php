@@ -11,6 +11,7 @@ use App\Http\Controllers\AdapterController;
 use App\Http\Controllers\WayfairAdapterController;
 use App\Http\Controllers\OrbitDBAdapterController;
 use App\Http\Controllers\TraderController;
+use App\Http\Controllers\OrbitRulesController;
 use App\Traits\AppTrait;
 use Config;
 use Log;
@@ -90,7 +91,7 @@ class ReceiveMessageWFController extends AdapterController
 		
 		$getOrderAdapter = $partner->getOrderAdapter();	
 		if (!empty($getOrderAdapter)) {
-			$getOrderAdapterClass = __NAMESPACE__ . '\\' . $getOrderAdapter;
+			$getOrderAdapterClass = __NAMESPACE__ . DIRECTORY_SEPARATOR . $getOrderAdapter;
 			$partnerAdapter =  new $getOrderAdapterClass($traderId,$partnerId);
 			$this->setPartnerAdapter($partnerAdapter);
 		} else {
@@ -99,7 +100,7 @@ class ReceiveMessageWFController extends AdapterController
 		
 		$traderERPAdapter = (string) $this->getTrader()->getErpAdapter();
 		if (!empty($traderERPAdapter)) {
-			$traderERPAdapterClass = __NAMESPACE__ . '\\' . $traderERPAdapter;
+			$traderERPAdapterClass = __NAMESPACE__ . DIRECTORY_SEPARATOR . $traderERPAdapter;
 			$this->traderERPAdapter = new $traderERPAdapterClass();
 		} else {
 			Log::warning("receiveMessageWFController:transaction Cannot load empty traderERP controller");
@@ -107,7 +108,7 @@ class ReceiveMessageWFController extends AdapterController
 		
 		$partnerPackingSlipAdapter = (string) $partner->getPackingSlipAdapter();
 		if (!empty($partnerPackingSlipAdapter)) {
-			$partnerPackingSlipAdapterClass = __NAMESPACE__ . '\\' . $partnerPackingSlipAdapter;
+			$partnerPackingSlipAdapterClass = __NAMESPACE__ . DIRECTORY_SEPARATOR . $partnerPackingSlipAdapter;
 			//include_once '../adapters/' . $partnerPackingSlipAdapterName . ".php";
 			$this->packingSlipAdapter = new $partnerPackingSlipAdapterClass();			
 			$this->packingSlipAdapter->setPartner($this->partner);
@@ -118,7 +119,7 @@ class ReceiveMessageWFController extends AdapterController
 		
 		$partnerShippingLabelAdapter = (string) $partner->getShippingLabelAdapter();
 		if (!empty($partnerShippingLabelAdapter)) {
-			$partnerShippingLabelAdapterClass = __NAMESPACE__ . '\\' . $partnerShippingLabelAdapter;
+			$partnerShippingLabelAdapterClass = __NAMESPACE__ . DIRECTORY_SEPARATOR . $partnerShippingLabelAdapter;
 			//include_once '../adapters/' . $partnerPackingSlipAdapterName . ".php";
 			$this->shippingLabelAdapter = new $partnerShippingLabelAdapterClass();
 			$t = $this->trader;
@@ -155,6 +156,8 @@ class ReceiveMessageWFController extends AdapterController
 		//$orderArray = $this->partnerCommunicationAdapter->processIncomingMessage($fileName, $messageType, $this->partner);
 		$orderArray[] = $this->getPartnerAdapter()->processIncomingMessage($fileName, $messageType);
 		
+		$rules = new OrbitRulesController($this->trader, $this->partner);
+		
 		$trader_id = $this->getTraderId();
 		$partner_id = $this->getPartnerId();
 		
@@ -174,21 +177,21 @@ class ReceiveMessageWFController extends AdapterController
 				$this->deleteCancelledOrder($this->getTrader()->getId(), $this->getPartner()->getPartnerId(), $order->getPoNumber());
 			}
 		
-			//$this->dbObject->logOrder($this->getTrader()->getId(), $this->getPartner()->getId(), $order->getPoNumber(), $order->getSoNumber(), "RC", $order->getRawOrder());
 			$workFlowId = $this->logOrder($trader_id, $partner_id, $poNumber, $soNumber, "RC", $order->getRawOrder());
-			//$order->setWorkFlowId($workFlowId);
-			/*try {
+			$isEligible['status'] = 'RR';
+			try {
 				$order->setTrader($this->getTrader());
 				$order->setPartner($this->getPartner());
 				$newOrder = $rules->applyRules($order);
 				if (isset($isEligible['status']) && $isEligible['status'] == 'RR') {
-					$this->dbObject->deleteSpecificStatus($this->getTrader()->getId(), $this->getPartner()->getId(), $order->getPoNumber(),'RR');
-					$this->dbObject->deleteSpecificStatus($this->getTrader()->getId(), $this->getPartner()->getId(), $order->getPoNumber(),'ER');
+					$this->deleteSpecificStatus($this->getTrader()->getId(), $this->getPartner()->getPartnerId(), $order->getPoNumber(),'RR');
+					$this->deleteSpecificStatus($this->getTrader()->getId(), $this->getPartner()->getPartnerId(), $order->getPoNumber(),'ER');
 				}
 			} catch (Exception $ex) {
-				$this->logger->LogFatal("receiveMessageWF:readOrder: Exception Caught", $ex . getMessage());
+				//$this->logger->LogFatal("receiveMessageWF:readOrder: Exception Caught", $ex . getMessage());
+				Log::warning("receiveMessage : readOrder: Exception error: ", $ex . getMessage());
 				exit;
-			}*/
+			}
 		}
 		return $orderArray;
 	}
@@ -197,7 +200,7 @@ class ReceiveMessageWFController extends AdapterController
 		
 		$trader = $this->getTrader();
 		$this->traderERPAdapter = $trader->getErpAdapter();		
-		$tClassName = __NAMESPACE__ . '\\' . $this->traderERPAdapter;
+		$tClassName = __NAMESPACE__ . DIRECTORY_SEPARATOR . $this->traderERPAdapter;
 		$traderErpAdapter =  new $tClassName;
 		
 		foreach ($orderArray as $thisOrder) {
